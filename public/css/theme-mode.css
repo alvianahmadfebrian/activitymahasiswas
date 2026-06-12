@@ -1,0 +1,174 @@
+:root {
+    --theme-bg: #f8fafc;
+    --theme-bg-soft: #eef4ff;
+    --theme-card: rgba(255, 255, 255, .86);
+    --theme-card-solid: #ffffff;
+    --theme-border: rgba(226, 232, 240, .9);
+    --theme-text: #0f172a;
+    --theme-text-soft: #475569;
+    --theme-muted: #64748b;
+    --theme-blue: #2563eb;
+}
+
+html.dark {
+    color-scheme: dark;
+
+    --theme-bg: #020617;
+    --theme-bg-soft: #0f172a;
+    --theme-card: rgba(15, 23, 42, .82);
+    --theme-card-solid: #0f172a;
+    --theme-border: rgba(51, 65, 85, .75);
+    --theme-text: #f8fafc;
+    --theme-text-soft: #cbd5e1;
+    --theme-muted: #94a3b8;
+    --theme-blue: #3b82f6;
+}
+
+html.dark body {
+    background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, .16), transparent 30rem),
+        radial-gradient(circle at top right, rgba(14, 165, 233, .10), transparent 28rem),
+        linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%) !important;
+    color: var(--theme-text);
+}
+
+html.dark .app-bg {
+    background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, .18), transparent 30rem),
+        radial-gradient(circle at top right, rgba(14, 165, 233, .12), transparent 28rem),
+        linear-gradient(135deg, #020617 0%, #0f172a 48%, #020617 100%) !important;
+}
+
+html.dark .glass-card,
+html.dark .profile-card,
+html.dark .tp-card,
+html.dark .db-card,
+html.dark .drive-card,
+html.dark .ds-card,
+html.dark .chat-card,
+html.dark .act-card {
+    background: rgba(15, 23, 42, .82) !important;
+    border-color: rgba(51, 65, 85, .75) !important;
+    color: #f8fafc !important;
+}
+
+html.dark .sidebar-bg,
+html.dark .topbar-glass,
+html.dark .mobile-panel {
+    background: rgba(15, 23, 42, .88) !important;
+    border-color: rgba(51, 65, 85, .75) !important;
+}
+
+html.dark .topbar-glass {
+    border-bottom-color: rgba(51, 65, 85, .75) !important;
+}
+
+html.dark .sidebar-bg {
+    border-right-color: rgba(51, 65, 85, .75) !important;
+}
+
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark .text-slate-950,
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 {
+    color: #f8fafc !important;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-slate-400 {
+    color: #94a3b8 !important;
+}
+
+html.dark .bg-white,
+html.dark .bg-white\/80,
+html.dark .bg-white\/70,
+html.dark .bg-white\/60,
+html.dark .bg-white\/65 {
+    background-color: rgba(15, 23, 42, .82) !important;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-100,
+html.dark .bg-blue-50 {
+    background-color: rgba(30, 41, 59, .78) !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-white\/70,
+html.dark .border-white\/80,
+html.dark .border-blue-100 {
+    border-color: rgba(51, 65, 85, .75) !important;
+}
+
+html.dark input,
+html.dark textarea,
+html.dark select,
+html.dark .profile-input,
+html.dark .form-input,
+html.dark .order-input {
+    background: rgba(15, 23, 42, .92) !important;
+    border-color: rgba(51, 65, 85, .9) !important;
+    color: #f8fafc !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+    color: #64748b !important;
+}
+
+html.dark table {
+    color: #e2e8f0 !important;
+}
+
+html.dark tr,
+html.dark td,
+html.dark th {
+    border-color: rgba(51, 65, 85, .75) !important;
+}
+
+html.dark .dropdown-glass {
+    background: rgba(15, 23, 42, .78) !important;
+    border-color: rgba(51, 65, 85, .80) !important;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .38) !important;
+}
+
+.theme-toggle {
+    height: 42px;
+    min-width: 42px;
+    border-radius: 14px;
+    border: 1px solid rgba(226, 232, 240, .9);
+    background: rgba(255, 255, 255, .82);
+    color: #0f172a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 12px;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+html.dark .theme-toggle {
+    background: rgba(15, 23, 42, .82);
+    border-color: rgba(51, 65, 85, .85);
+    color: #f8fafc;
+}
+
+.theme-toggle-icon {
+    font-size: 15px;
+    line-height: 1;
+}
+
+.theme-toggle-text {
+    line-height: 1;
+}
+
+@media (max-width: 640px) {
+    .theme-toggle-text {
+        display: none;
+    }
+}
