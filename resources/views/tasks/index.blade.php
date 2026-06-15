@@ -543,7 +543,7 @@
 
                                 {{-- status --}}
                                 <td>
-                                    <form method="POST" action="{{ route('tasks.status', $task->_id) }}">
+                                    <form method="POST" action="{{ route('tasks.status', ['id' => $task->id]) }}">
                                         @csrf
                                         @method('PATCH')
                                         <select name="status" onchange="this.form.submit()"
@@ -569,8 +569,8 @@
 
                                 {{-- delete --}}
                                 <td class="text-right">
-                                    <form method="POST" action="{{ route('tasks.destroy', $task->_id) }}"
-                                        onsubmit="return confirm('Hapus tugas ini?')">
+                                    <form method="POST" action="{{ route('tasks.destroy', ['id' => $task->id]) }}"
+    onsubmit="return confirm('Hapus tugas ini?')">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="tp-del" title="Hapus">
