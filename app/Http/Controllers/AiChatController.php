@@ -182,26 +182,22 @@ class AiChatController extends Controller
     }
 
     public function download($messageId)
-    {
-        $user = Auth::user();
+{
+    $user = Auth::user();
 
-        $message = ChatMessage::where('id', $messageId)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
+    $message = ChatMessage::where('id', $messageId)
+        ->where('user_id', $user->id)
+        ->firstOrFail();
 
-        if (empty($message->file_path)) {
-            abort(404, 'File tidak ditemukan.');
-        }
+    $absolutePath = storage_path('app/public/' . $message->file_path);
 
-        if (!Storage::disk('public')->exists($message->file_path)) {
-            abort(404, 'File tidak tersedia di storage.');
-        }
-
-        $absolutePath = storage_path('app/public/' . $message->file_path);
-        $downloadName = $message->file_name ?: basename($absolutePath);
-
-        return response()->download($absolutePath, $downloadName);
-    }
+    dd([
+        'file_path' => $message->file_path,
+        'absolute_path' => $absolutePath,
+        'file_exists' => file_exists($absolutePath),
+        'storage_exists' => Storage::disk('public')->exists($message->file_path),
+    ]);
+}
 
     public function destroy($sessionId)
     {
