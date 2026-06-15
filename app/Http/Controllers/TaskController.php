@@ -62,7 +62,7 @@ class TaskController extends Controller
             'status' => ['required', 'in:belum,proses,selesai'],
         ]);
 
-        $task = Task::where('_id', $id)
+        $task = Task::where('id', $id)
             ->where('user_id', (string) Auth::id())
             ->firstOrFail();
 
@@ -77,7 +77,7 @@ class TaskController extends Controller
 
     public function destroy(string $id)
     {
-        $task = Task::where('_id', $id)
+        $task = Task::where('id', $id)
             ->where('user_id', (string) Auth::id())
             ->firstOrFail();
 
