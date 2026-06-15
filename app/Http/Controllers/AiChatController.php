@@ -587,7 +587,8 @@ class AiChatController extends Controller
     'type' => 'pdf',
     'name' => basename($fileName),
     'path' => $fileName,
-        ];
+    'url' => asset('storage/' . $fileName),
+];
     }
 
     private function makeWordFromAi(string $userMessage, string $content): array
@@ -671,6 +672,7 @@ class AiChatController extends Controller
     'type' => 'word',
     'name' => basename($fileName),
     'path' => $fileName,
+    'url' => asset('storage/' . $fileName),
 ];
     }
 }
