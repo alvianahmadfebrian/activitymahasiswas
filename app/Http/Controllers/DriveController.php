@@ -71,7 +71,7 @@ class DriveController extends Controller
 
     public function destroy(string $id)
     {
-        $file = DriveFile::where('_id', $id)
+        $file = DriveFile::where('id', $id)
             ->where('user_id', (string) Auth::id())
             ->firstOrFail();
 
