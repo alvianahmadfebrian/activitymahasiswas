@@ -189,14 +189,20 @@ class AiChatController extends Controller
         ->where('user_id', $user->id)
         ->firstOrFail();
 
-    $absolutePath = storage_path('app/public/' . $message->file_path);
+    if (!$message->file_path) {
+        abort(404, 'File tidak ditemukan');
+    }
 
-    dd([
-        'file_path' => $message->file_path,
-        'absolute_path' => $absolutePath,
-        'file_exists' => file_exists($absolutePath),
-        'storage_exists' => Storage::disk('public')->exists($message->file_path),
-    ]);
+    $path = storage_path('app/public/' . $message->file_path);
+
+    if (!file_exists($path)) {
+        abort(404, 'File tidak tersedia');
+    }
+
+    return response()->download(
+        $path,
+        $message->file_name ?? basename($path)
+    );
 }
 
     public function destroy($sessionId)
@@ -578,10 +584,9 @@ class AiChatController extends Controller
         Storage::disk('public')->put($fileName, $pdf->output());
 
         return [
-            'type' => 'pdf',
-            'name' => basename($fileName),
-            'path' => $fileName,
-            'url' => asset('public/storage/' . $fileName),
+    'type' => 'pdf',
+    'name' => basename($fileName),
+    'path' => $fileName,
         ];
     }
 
@@ -663,10 +668,9 @@ class AiChatController extends Controller
         $writer->save($path);
 
         return [
-            'type' => 'word',
-            'name' => basename($fileName),
-            'path' => $fileName,
-            'url' => asset('public/storage/' . $fileName),
-        ];
+    'type' => 'word',
+    'name' => basename($fileName),
+    'path' => $fileName,
+];
     }
 }
