@@ -24,13 +24,13 @@
         $path = parse_url($url, PHP_URL_PATH);
         $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         return match($ext) {
-            'pdf'              => ['label' => 'PDF',   'class' => 'bg-rose-50   text-rose-600   border-rose-200'],
-            'doc', 'docx'      => ['label' => 'WORD',  'class' => 'bg-blue-50   text-blue-600   border-blue-200'],
-            'xls','xlsx','csv' => ['label' => 'EXCEL', 'class' => 'bg-emerald-50 text-emerald-600 border-emerald-200'],
-            'ppt', 'pptx'      => ['label' => 'PPT',   'class' => 'bg-violet-50 text-violet-600  border-violet-200'],
-            'jpg','jpeg','png','webp' => ['label' => 'IMG', 'class' => 'bg-indigo-50 text-indigo-600 border-indigo-200'],
-            'zip','rar','7z'   => ['label' => 'ZIP',   'class' => 'bg-slate-50  text-slate-500   border-slate-200'],
-            default            => ['label' => strtoupper($ext ?: 'FILE'), 'class' => 'bg-slate-50 text-slate-500 border-slate-200'],
+            'pdf'              => ['label' => 'PDF',   'class' => 'bg-rose-50   text-rose-600   border-rose-200',   'previewable' => true,  'type' => 'pdf'],
+            'doc', 'docx'      => ['label' => 'WORD',  'class' => 'bg-blue-50   text-blue-600   border-blue-200',   'previewable' => false, 'type' => 'doc'],
+            'xls','xlsx','csv' => ['label' => 'EXCEL', 'class' => 'bg-emerald-50 text-emerald-600 border-emerald-200', 'previewable' => false, 'type' => 'sheet'],
+            'ppt', 'pptx'      => ['label' => 'PPT',   'class' => 'bg-violet-50 text-violet-600  border-violet-200', 'previewable' => false, 'type' => 'ppt'],
+            'jpg','jpeg','png','webp','gif' => ['label' => 'IMG', 'class' => 'bg-indigo-50 text-indigo-600 border-indigo-200', 'previewable' => true, 'type' => 'image'],
+            'zip','rar','7z'   => ['label' => 'ZIP',   'class' => 'bg-slate-50  text-slate-500   border-slate-200',  'previewable' => false, 'type' => 'zip'],
+            default            => ['label' => strtoupper($ext ?: 'FILE'), 'class' => 'bg-slate-50 text-slate-500 border-slate-200', 'previewable' => false, 'type' => 'file'],
         };
     };
 @endphp
@@ -156,6 +156,11 @@
         color: #0f172a;
         outline: none;
         transition: border-color .15s, box-shadow .15s;
+        /* FIX: pastikan font-size >= 16px di mobile agar iOS tidak auto-zoom */
+        -webkit-appearance: none;
+    }
+    @media (max-width: 640px) {
+        .tp-ctrl-input { font-size: 16px; }
     }
     .tp-ctrl-input:focus {
         border-color: #3b82f6;
@@ -281,19 +286,74 @@
     .tp-dl-warn    { color: #d97706; }
     .tp-dl-over    { color: #dc2626; }
 
-    /* status select */
-    .tp-status-sel {
-        appearance: none;
-        border: 1px solid;
-        border-radius: 999px;
-        padding: 4px 11px;
-        font-size: 11px;
-        font-weight: 500;
-        cursor: pointer;
-        outline: none;
-        transition: box-shadow .15s;
+    /* ── STATUS PILLS (ganti select) ─────────────── */
+    .tp-status-wrap {
+        position: relative;
+        display: inline-block;
     }
-    .tp-status-sel:focus { box-shadow: 0 0 0 3px rgba(59,130,246,.14); }
+    .tp-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 10px 5px 9px;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 999px;
+        border: 1.5px solid;
+        cursor: pointer;
+        white-space: nowrap;
+        /* touch target min 44px */
+        min-height: 32px;
+        user-select: none;
+        transition: opacity .12s;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .tp-status-pill:active { opacity: .75; }
+    .tp-status-pill svg    { width: 9px; height: 9px; flex-shrink: 0; }
+
+    /* pill colours */
+    .tp-pill-belum   { border-color: #cbd5e1; color: #64748b; background: #f8fafc; }
+    .tp-pill-proses  { border-color: #93c5fd; color: #2563eb; background: #eff6ff; }
+    .tp-pill-selesai { border-color: #6ee7b7; color: #059669; background: #ecfdf5; }
+
+    /* dropdown */
+    .tp-status-drop {
+        display: none;
+        position: absolute;
+        top: calc(100% + 5px);
+        left: 0;
+        min-width: 130px;
+        background: #fff;
+        border: 1px solid rgba(200,220,255,.65);
+        border-radius: 12px;
+        box-shadow: 0 6px 24px rgba(30,80,200,.12);
+        z-index: 50;
+        overflow: hidden;
+    }
+    .tp-status-drop.open { display: block; }
+    .tp-status-drop button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 12px;
+        font-weight: 500;
+        background: none;
+        border: none;
+        color: #334155;
+        cursor: pointer;
+        text-align: left;
+        /* touch */
+        min-height: 40px;
+    }
+    .tp-status-drop button:hover { background: rgba(241,245,255,.8); }
+    .tp-status-drop .dot {
+        width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot-belum   { background: #94a3b8; }
+    .dot-proses  { background: #2563eb; }
+    .dot-selesai { background: #059669; }
 
     /* file badge */
     .tp-fbadge {
@@ -306,7 +366,12 @@
         border-radius: 5px;
         border: 1px solid;
         letter-spacing: .03em;
+        cursor: pointer;
+        transition: opacity .12s;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
     }
+    .tp-fbadge:hover { opacity: .75; }
 
     /* delete button */
     .tp-del {
@@ -332,6 +397,127 @@
     /* alert banners */
     .tp-alert-ok  { border: 1px solid rgba(167, 243, 208, .70); background: rgba(236, 253, 245, .80); color: #065f46; }
     .tp-alert-err { border: 1px solid rgba(252, 165, 165, .70); background: rgba(254, 242, 242, .80); color: #991b1b; }
+
+    /* ── FILE PREVIEW MODAL ──────────────────────── */
+    .tp-modal-bg {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.65);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .2s;
+    }
+    .tp-modal-bg.open {
+        opacity: 1;
+        pointer-events: all;
+    }
+    .tp-modal {
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: 0 24px 80px rgba(15,23,42,.25);
+        width: 100%;
+        max-width: 860px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transform: translateY(12px) scale(.98);
+        transition: transform .2s;
+    }
+    .tp-modal-bg.open .tp-modal {
+        transform: translateY(0) scale(1);
+    }
+    .tp-modal-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 18px;
+        border-bottom: 1px solid rgba(200,220,255,.35);
+        flex-shrink: 0;
+    }
+    .tp-modal-title {
+        flex: 1;
+        font-size: 13px;
+        font-weight: 600;
+        color: #0f172a;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .tp-modal-actions {
+        display: flex;
+        gap: 6px;
+    }
+    .tp-modal-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        border-radius: 8px;
+        border: 1px solid rgba(200,220,255,.55);
+        background: rgba(241,245,255,.70);
+        color: #475569;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background .12s;
+        white-space: nowrap;
+    }
+    .tp-modal-btn:hover { background: rgba(219,234,254,.60); }
+    .tp-modal-btn.primary {
+        background: #2563eb;
+        color: #fff;
+        border-color: #2563eb;
+    }
+    .tp-modal-btn.primary:hover { background: #1d4ed8; }
+    .tp-modal-close {
+        width: 32px; height: 32px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: none;
+        border: 1px solid rgba(200,220,255,.45);
+        border-radius: 8px;
+        cursor: pointer;
+        color: #94a3b8;
+        flex-shrink: 0;
+        transition: background .12s, color .12s;
+    }
+    .tp-modal-close:hover { background: rgba(254,226,226,.70); color: #dc2626; border-color: #fca5a5; }
+    .tp-modal-body {
+        flex: 1;
+        overflow: auto;
+        background: #f8fafc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 300px;
+    }
+    .tp-modal-body iframe {
+        width: 100%;
+        height: 100%;
+        min-height: 500px;
+        border: none;
+    }
+    .tp-modal-body img {
+        max-width: 100%;
+        max-height: 72vh;
+        object-fit: contain;
+        border-radius: 8px;
+    }
+    .tp-modal-nopreview {
+        text-align: center;
+        padding: 48px 24px;
+        color: #94a3b8;
+    }
+    .tp-modal-nopreview svg { width: 40px; height: 40px; margin: 0 auto 12px; display: block; }
+    .tp-modal-nopreview p  { font-size: 13px; line-height: 1.6; }
 </style>
 
 <div class="tp-page space-y-4 overflow-hidden">
@@ -467,8 +653,8 @@
                             <th style="width:44px"></th>
                             <th>Nama</th>
                             <th style="width:130px">Deadline</th>
-                            <th style="width:150px">Status</th>
-                            <th style="width:100px">Lampiran</th>
+                            <th style="width:160px">Status</th>
+                            <th style="width:110px">Lampiran</th>
                             <th style="width:52px"></th>
                         </tr>
                     </thead>
@@ -541,27 +727,72 @@
                                     @endif
                                 </td>
 
-                                {{-- status --}}
+                                {{-- STATUS: pill + dropdown (bukan <select> native) --}}
                                 <td>
-                                    <form method="POST" action="{{ route('tasks.status', ['id' => $task->id]) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                        <select name="status" onchange="this.form.submit()"
-                                            class="tp-status-sel {{ $badge }}">
-                                            <option value="belum"   @selected($status === 'belum')>Belum</option>
-                                            <option value="proses"  @selected($status === 'proses')>Proses</option>
-                                            <option value="selesai" @selected($status === 'selesai')>Selesai</option>
-                                        </select>
-                                    </form>
+                                    <div class="tp-status-wrap" data-task-id="{{ $task->id }}">
+                                        <button type="button"
+                                            class="tp-status-pill tp-pill-{{ $status }} js-status-pill"
+                                            data-current="{{ $status }}"
+                                            aria-haspopup="true"
+                                            aria-expanded="false">
+                                            <svg viewBox="0 0 8 8" fill="none" aria-hidden="true">
+                                                <circle cx="4" cy="4" r="3" fill="currentColor"/>
+                                            </svg>
+                                            <span class="js-pill-label">{{ ucfirst($status) }}</span>
+                                            <svg viewBox="0 0 24 24" fill="none" style="width:10px;height:10px;margin-left:2px" aria-hidden="true">
+                                                <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                                            </svg>
+                                        </button>
+
+                                        <div class="tp-status-drop js-status-drop">
+                                            <button type="button" data-val="belum">
+                                                <span class="dot dot-belum"></span> Belum
+                                            </button>
+                                            <button type="button" data-val="proses">
+                                                <span class="dot dot-proses"></span> Proses
+                                            </button>
+                                            <button type="button" data-val="selesai">
+                                                <span class="dot dot-selesai"></span> Selesai
+                                            </button>
+                                        </div>
+
+                                        {{-- hidden form tetap ada untuk PATCH --}}
+                                        <form class="js-status-form hidden" method="POST"
+                                            action="{{ route('tasks.status', ['id' => $task->id]) }}">
+                                            @csrf
+                                            @method('PATCH')
+                                            <input type="hidden" name="status" class="js-status-input" value="{{ $status }}">
+                                        </form>
+                                    </div>
                                 </td>
 
                                 {{-- file --}}
                                 <td>
                                     @if($task->file_url && $file)
-                                        <a href="{{ $task->file_url }}" target="_blank"
-                                            class="tp-fbadge {{ $file['class'] }} hover:opacity-80 transition-opacity">
-                                            {{ $file['label'] }}
-                                        </a>
+                                        @if($file['previewable'])
+                                            {{-- bisa di-preview --}}
+                                            <button type="button"
+                                                class="tp-fbadge {{ $file['class'] }} js-preview-btn"
+                                                data-url="{{ $task->file_url }}"
+                                                data-type="{{ $file['type'] }}"
+                                                data-name="{{ $task->title }}">
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/>
+                                                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                                                </svg>
+                                                {{ $file['label'] }}
+                                            </button>
+                                        @else
+                                            {{-- tidak bisa di-preview, langsung download --}}
+                                            <a href="{{ $task->file_url }}" target="_blank" download
+                                                class="tp-fbadge {{ $file['class'] }}">
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"
+                                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                </svg>
+                                                {{ $file['label'] }}
+                                            </a>
+                                        @endif
                                     @else
                                         <span style="color:#cbd5e1;font-size:12px">—</span>
                                     @endif
@@ -570,7 +801,7 @@
                                 {{-- delete --}}
                                 <td class="text-right">
                                     <form method="POST" action="{{ route('tasks.destroy', ['id' => $task->id]) }}"
-    onsubmit="return confirm('Hapus tugas ini?')">
+                                        onsubmit="return confirm('Hapus tugas ini?')">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="tp-del" title="Hapus">
@@ -608,10 +839,45 @@
         </section>
     </div>
 </div>
+
+{{-- ── FILE PREVIEW MODAL ────────────────────────── --}}
+<div id="fileModal" class="tp-modal-bg" role="dialog" aria-modal="true" aria-label="Preview file">
+    <div class="tp-modal">
+        <div class="tp-modal-head">
+            <span id="modalTitle" class="tp-modal-title">Preview</span>
+            <div class="tp-modal-actions">
+                <a id="modalDownload" href="#" download target="_blank" class="tp-modal-btn primary">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"
+                            stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                    </svg>
+                    Download
+                </a>
+                <a id="modalOpen" href="#" target="_blank" class="tp-modal-btn">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    Buka tab baru
+                </a>
+            </div>
+            <button type="button" id="modalClose" class="tp-modal-close" aria-label="Tutup">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="tp-modal-body" id="modalBody">
+            {{-- content diisi JS --}}
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
 <script>
+/* ─── filter & search ─────────────────────────────── */
 const taskSearch      = document.getElementById('taskSearch');
 const statusFilter    = document.getElementById('statusFilter');
 const taskRows        = document.querySelectorAll('.task-row');
@@ -692,5 +958,133 @@ clearSelectBtn?.addEventListener('click', () => {
 });
 
 document.addEventListener('click', () => selectMenu?.classList.add('hidden'));
+
+/* ─── STATUS PILL DROPDOWN ───────────────────────── */
+const labelMap = { belum: 'Belum', proses: 'Proses', selesai: 'Selesai' };
+
+document.querySelectorAll('.tp-status-wrap').forEach(wrap => {
+    const pill    = wrap.querySelector('.js-status-pill');
+    const drop    = wrap.querySelector('.js-status-drop');
+    const form    = wrap.querySelector('.js-status-form');
+    const input   = wrap.querySelector('.js-status-input');
+    const label   = wrap.querySelector('.js-pill-label');
+
+    pill?.addEventListener('click', e => {
+        e.stopPropagation();
+
+        // Tutup semua dropdown lain dulu
+        document.querySelectorAll('.js-status-drop.open').forEach(d => {
+            if (d !== drop) d.classList.remove('open');
+        });
+
+        drop?.classList.toggle('open');
+        pill.setAttribute('aria-expanded', drop?.classList.contains('open') ? 'true' : 'false');
+    });
+
+    drop?.querySelectorAll('button[data-val]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const newStatus = btn.dataset.val;
+            const current   = pill?.dataset.current;
+
+            drop.classList.remove('open');
+
+            if (newStatus === current) return; // tidak berubah, skip submit
+
+            // Update tampilan pill dulu (optimistic UI)
+            if (pill && label) {
+                pill.className = `tp-status-pill tp-pill-${newStatus} js-status-pill`;
+                pill.dataset.current = newStatus;
+                label.textContent = labelMap[newStatus] ?? newStatus;
+            }
+
+            // Update data-status di row (agar filter tetap sinkron)
+            const row = wrap.closest('.task-row');
+            if (row) {
+                row.dataset.status = newStatus;
+                const kw = (taskSearch?.value || '').toLowerCase();
+                const sf = statusFilter?.value || 'all';
+                if (sf !== 'all' && sf !== newStatus) {
+                    row.style.display = 'none';
+                }
+            }
+
+            // Submit form
+            if (input) input.value = newStatus;
+            form?.submit();
+        });
+    });
+});
+
+// Tutup dropdown status jika klik di luar
+document.addEventListener('click', () => {
+    document.querySelectorAll('.js-status-drop.open').forEach(d => d.classList.remove('open'));
+});
+
+/* ─── FILE PREVIEW MODAL ─────────────────────────── */
+const modal        = document.getElementById('fileModal');
+const modalBody    = document.getElementById('modalBody');
+const modalTitle   = document.getElementById('modalTitle');
+const modalDownload = document.getElementById('modalDownload');
+const modalOpen    = document.getElementById('modalOpen');
+const modalClose   = document.getElementById('modalClose');
+
+function openModal(url, type, name) {
+    modalTitle.textContent  = name || 'Preview';
+    modalDownload.href      = url;
+    modalOpen.href          = url;
+
+    modalBody.innerHTML = '';
+
+    if (type === 'image') {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = name;
+        modalBody.appendChild(img);
+    } else if (type === 'pdf') {
+        // Coba embed PDF; jika browser mobile tidak support, tampilkan fallback
+        const iframe = document.createElement('iframe');
+        iframe.src   = url;
+        iframe.title = name;
+        modalBody.appendChild(iframe);
+    } else {
+        // Tidak bisa di-preview (harusnya tidak pernah dipanggil untuk tipe ini)
+        modalBody.innerHTML = `
+            <div class="tp-modal-nopreview">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.6"/>
+                    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                <p>File ini tidak dapat di-preview.<br>Gunakan tombol Download untuk mengunduhnya.</p>
+            </div>`;
+    }
+
+    modal?.classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+    modal?.classList.remove('open');
+    document.body.style.overflow = '';
+    // Bersihkan iframe agar tidak terus loading di background
+    setTimeout(() => { if (modalBody) modalBody.innerHTML = ''; }, 200);
+}
+
+document.querySelectorAll('.js-preview-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        openModal(btn.dataset.url, btn.dataset.type, btn.dataset.name);
+    });
+});
+
+modalClose?.addEventListener('click', closeModal);
+
+// Klik di luar modal untuk tutup
+modal?.addEventListener('click', e => {
+    if (e.target === modal) closeModal();
+});
+
+// Escape key
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+});
 </script>
 @endpush
