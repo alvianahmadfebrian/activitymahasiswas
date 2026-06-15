@@ -25,12 +25,12 @@
         $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         return match($ext) {
             'pdf'              => ['label' => 'PDF',   'class' => 'bg-rose-50   text-rose-600   border-rose-200',   'previewable' => true,  'type' => 'pdf'],
-            'doc', 'docx'      => ['label' => 'WORD',  'class' => 'bg-blue-50   text-blue-600   border-blue-200',   'previewable' => false, 'type' => 'doc'],
-            'xls','xlsx','csv' => ['label' => 'EXCEL', 'class' => 'bg-emerald-50 text-emerald-600 border-emerald-200', 'previewable' => false, 'type' => 'sheet'],
-            'ppt', 'pptx'      => ['label' => 'PPT',   'class' => 'bg-violet-50 text-violet-600  border-violet-200', 'previewable' => false, 'type' => 'ppt'],
+            'doc', 'docx'      => ['label' => 'WORD',  'class' => 'bg-blue-50   text-blue-600   border-blue-200',   'previewable' => true, 'type' => 'doc'],
+            'xls','xlsx','csv' => ['label' => 'EXCEL', 'class' => 'bg-emerald-50 text-emerald-600 border-emerald-200', 'previewable' => true, 'type' => 'sheet'],
+            'ppt', 'pptx'      => ['label' => 'PPT',   'class' => 'bg-violet-50 text-violet-600  border-violet-200', 'previewable' => true, 'type' => 'ppt'],
             'jpg','jpeg','png','webp','gif' => ['label' => 'IMG', 'class' => 'bg-indigo-50 text-indigo-600 border-indigo-200', 'previewable' => true, 'type' => 'image'],
-            'zip','rar','7z'   => ['label' => 'ZIP',   'class' => 'bg-slate-50  text-slate-500   border-slate-200',  'previewable' => false, 'type' => 'zip'],
-            default            => ['label' => strtoupper($ext ?: 'FILE'), 'class' => 'bg-slate-50 text-slate-500 border-slate-200', 'previewable' => false, 'type' => 'file'],
+            'zip','rar','7z'   => ['label' => 'ZIP',   'class' => 'bg-slate-50  text-slate-500   border-slate-200',  'previewable' => true, 'type' => 'zip'],
+            default            => ['label' => strtoupper($ext ?: 'FILE'), 'class' => 'bg-slate-50 text-slate-500 border-slate-200', 'previewable' => true, 'type' => 'file'],
         };
     };
 @endphp
@@ -1029,37 +1029,101 @@ const modalOpen    = document.getElementById('modalOpen');
 const modalClose   = document.getElementById('modalClose');
 
 function openModal(url, type, name) {
-    modalTitle.textContent  = name || 'Preview';
-    modalDownload.href      = url;
-    modalOpen.href          = url;
 
-    modalBody.innerHTML = '';
+    modalTitle.textContent = name || "Preview";
 
-    if (type === 'image') {
-        const img = document.createElement('img');
+    modalDownload.href = url;
+    modalOpen.href = url;
+
+    modalBody.innerHTML = "";
+
+    if (type === "image") {
+
+        const img = document.createElement("img");
+
         img.src = url;
         img.alt = name;
+
+        img.style.maxWidth = "100%";
+        img.style.maxHeight = "75vh";
+
         modalBody.appendChild(img);
-    } else if (type === 'pdf') {
-        // Coba embed PDF; jika browser mobile tidak support, tampilkan fallback
-        const iframe = document.createElement('iframe');
-        iframe.src   = url;
-        iframe.title = name;
-        modalBody.appendChild(iframe);
-    } else {
-        // Tidak bisa di-preview (harusnya tidak pernah dipanggil untuk tipe ini)
-        modalBody.innerHTML = `
-            <div class="tp-modal-nopreview">
-                <svg viewBox="0 0 24 24" fill="none">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.6"/>
-                    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                </svg>
-                <p>File ini tidak dapat di-preview.<br>Gunakan tombol Download untuk mengunduhnya.</p>
-            </div>`;
+
     }
 
-    modal?.classList.add('open');
-    document.body.style.overflow = 'hidden';
+    else if (type === "pdf") {
+
+        const iframe = document.createElement("iframe");
+
+        iframe.src =
+        "https://docs.google.com/gview?embedded=1&url="
+        + encodeURIComponent(url);
+
+        iframe.style.width = "100%";
+        iframe.style.height = "700px";
+        iframe.style.border = "none";
+
+        modalBody.appendChild(iframe);
+
+    }
+
+    else if (
+        type === "doc" ||
+        type === "sheet" ||
+        type === "ppt"
+    ) {
+
+        const iframe = document.createElement("iframe");
+
+        iframe.src =
+        "https://view.officeapps.live.com/op/embed.aspx?src="
+        + encodeURIComponent(url);
+
+        iframe.style.width = "100%";
+        iframe.style.height = "700px";
+        iframe.style.border = "none";
+
+        modalBody.appendChild(iframe);
+
+    }
+
+    else {
+
+        modalBody.innerHTML = `
+        <div class="tp-modal-nopreview">
+
+            <svg viewBox="0 0 24 24" fill="none">
+
+                <path
+                d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
+                stroke="currentColor"
+                stroke-width="1.6"/>
+
+                <path
+                d="M14 2v6h6M16 13H8M16 17H8M10 9H8"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"/>
+
+            </svg>
+
+            <p>
+
+            File tidak dapat dipreview.
+
+            <br><br>
+
+            Silakan download file.
+
+            </p>
+
+        </div>
+        `;
+    }
+
+    modal.classList.add("open");
+
+    document.body.style.overflow = "hidden";
 }
 
 function closeModal() {
