@@ -585,7 +585,7 @@ class AiChatController extends Controller
             'type' => 'pdf',
             'name' => basename($fileName),
             'path' => $fileName,
-            'url' => asset('storage/' . $fileName),
+            'url' => asset('public/storage/' . $fileName),
         ];
     }
 
@@ -670,7 +670,7 @@ class AiChatController extends Controller
             'type' => 'word',
             'name' => basename($fileName),
             'path' => $fileName,
-            'url' => asset('storage/' . $fileName),
+            'url' => asset('public/storage/' . $fileName),
         ];
     }
 }
