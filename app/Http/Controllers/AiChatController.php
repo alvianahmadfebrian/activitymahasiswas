@@ -190,13 +190,13 @@ class AiChatController extends Controller
         ->firstOrFail();
 
     if (!$message->file_path) {
-        abort(404, 'File tidak ditemukan');
+        abort(404);
     }
 
     $path = storage_path('app/public/' . $message->file_path);
 
     if (!file_exists($path)) {
-        abort(404, 'File tidak tersedia');
+        abort(404);
     }
 
     return response()->download(
@@ -569,27 +569,27 @@ class AiChatController extends Controller
     }
 
     private function makePdfFromAi(string $userMessage, string $content): array
-    {
-        $title = $this->makeTitle($userMessage);
+{
+    $title = $this->makeTitle($userMessage);
 
-        $pdf = Pdf::loadView('generated.pdf-template', [
-            'title' => $title,
-            'content' => $content,
-        ]);
+    $pdf = Pdf::loadView('generated.pdf-template', [
+        'title' => $title,
+        'content' => $content,
+    ]);
 
-        $pdf->setPaper('a4', 'portrait');
+    $pdf->setPaper('a4', 'portrait');
 
-        $fileName = 'generated/' . Str::slug($title) . '-' . time() . '.pdf';
+    $fileName = 'generated/' . Str::slug($title) . '-' . time() . '.pdf';
 
-        Storage::disk('public')->put($fileName, $pdf->output());
+    Storage::disk('public')->put($fileName, $pdf->output());
 
-        return [
-    'type' => 'pdf',
-    'name' => basename($fileName),
-    'path' => $fileName,
-    'url' => asset('storage/' . $fileName),
-];
-    }
+    return [
+        'type' => 'pdf',
+        'name' => basename($fileName),
+        'path' => $fileName,
+        'url' => asset('storage/' . $fileName),
+    ];
+}
 
     private function makeWordFromAi(string $userMessage, string $content): array
     {
