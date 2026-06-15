@@ -55,7 +55,7 @@ class AiChatController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        $messages = ChatMessage::where('chat_session_id', (string) $currentSession->_id)
+        $messages = ChatMessage::where('chat_session_id', (string) $currentSession->id)
             ->where('user_id', $user->id)
             ->oldest()
             ->get();
@@ -93,7 +93,7 @@ class AiChatController extends Controller
         if ($navigation && !$uploadedFile) {
             ChatMessage::create([
                 'user_id' => $user->id,
-                'chat_session_id' => (string) $session->_id,
+                'chat_session_id' => (string) $session->id,
                 'role' => 'user',
                 'message' => $userMessage,
             ]);
@@ -102,7 +102,7 @@ class AiChatController extends Controller
 
             ChatMessage::create([
                 'user_id' => $user->id,
-                'chat_session_id' => (string) $session->_id,
+                'chat_session_id' => (string) $session->id,
                 'role' => 'assistant',
                 'message' => $reply,
             ]);
@@ -110,7 +110,7 @@ class AiChatController extends Controller
             return response()->json([
                 'success' => true,
                 'reply' => $reply,
-                'chat_session_id' => (string) $session->_id,
+                'chat_session_id' => (string) $session->id,
                 'redirect_url' => $navigation['url'],
                 'file_url' => null,
                 'file_type' => null,
@@ -126,7 +126,7 @@ class AiChatController extends Controller
 
         ChatMessage::create([
             'user_id' => $user->id,
-            'chat_session_id' => (string) $session->_id,
+            'chat_session_id' => (string) $session->id,
             'role' => 'user',
             'message' => $userMessage !== '' ? $userMessage : 'Saya mengupload lampiran.',
             'file_url' => $userFileData['url'] ?? null,
@@ -154,7 +154,7 @@ class AiChatController extends Controller
 
         $assistantMessage = ChatMessage::create([
             'user_id' => $user->id,
-            'chat_session_id' => (string) $session->_id,
+            'chat_session_id' => (string) $session->id,
             'role' => 'assistant',
             'message' => $aiReply,
             'file_url' => $fileData['url'] ?? null,
@@ -166,10 +166,10 @@ class AiChatController extends Controller
         return response()->json([
             'success' => true,
             'reply' => $assistantMessage->message,
-            'chat_session_id' => (string) $session->_id,
-            'redirect_url' => route('chatbot.show', $session->_id),
+            'chat_session_id' => (string) $session->id,
+            'redirect_url' => route('chatbot.show', $session->id),
             'file_url' => !empty($assistantMessage->file_path)
-                ? route('chatbot.download', $assistantMessage->_id)
+                ? route('chatbot.download', $assistantMessage->id)
                 : null,
             'file_type' => $assistantMessage->file_type ?? null,
             'file_name' => $assistantMessage->file_name ?? null,
@@ -211,7 +211,7 @@ class AiChatController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        ChatMessage::where('chat_session_id', (string) $session->_id)
+        ChatMessage::where('chat_session_id', (string) $session->id)
             ->where('user_id', $user->id)
             ->delete();
 
