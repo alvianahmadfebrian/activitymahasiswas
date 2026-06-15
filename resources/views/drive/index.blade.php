@@ -592,7 +592,7 @@
                                 </td>
 
                                 <td class="text-right">
-                                    <form method="POST" action="{{ route('drive.destroy', $file->_id) }}" onsubmit="return confirm('Hapus item ini?')">
+                                    <form method="POST" action="{{ route('drive.destroy', $file->id) }}" onsubmit="return confirm('Hapus item ini?')">
                                         @csrf
                                         @method('DELETE')
 
