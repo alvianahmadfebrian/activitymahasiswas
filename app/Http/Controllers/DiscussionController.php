@@ -32,7 +32,7 @@ private function updateUserOnlineStatus(): void
         return;
     }
 
-    User::where('_id', (string) Auth::id())->update([
+    User::where('id', (string) Auth::id())->update([
         'last_active_at' => now(),
     ]);
 }
@@ -45,7 +45,7 @@ private function updateUserOnlineStatus(): void
 
         $rooms = DiscussionRoom::orderBy('updated_at', 'desc')->get();
 
-        $users = User::where('_id', '!=', $authId)->get()->map(function ($user) {
+        $users = User::where('id', '!=', $authId)->get()->map(function ($user) {
             $user->is_online = $this->isUserOnline($user);
             return $user;
         });
@@ -97,7 +97,7 @@ private function updateUserOnlineStatus(): void
 
         $rooms = DiscussionRoom::orderBy('updated_at', 'desc')->get();
 
-        $users = User::where('_id', '!=', $authId)->get()->map(function ($user) {
+        $users = User::where('id', '!=', $authId)->get()->map(function ($user) {
             $user->is_online = $this->isUserOnline($user);
             return $user;
         });

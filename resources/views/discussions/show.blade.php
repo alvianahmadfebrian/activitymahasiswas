@@ -12,7 +12,7 @@
         return ($r->type ?? 'group') === 'group' ? 'Group diskusi' : 'Chat pribadi';
     };
 
-    $safeRoomId = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $room->_id);
+    $safeRoomId = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $room->id);
     $callRoomName = 'campushub-discussion-' . $safeRoomId;
 
     $voiceCallUrl = 'https://meet.jit.si/' . $callRoomName . '#config.startAudioOnly=true&config.startWithVideoMuted=true&config.prejoinPageEnabled=false';
@@ -273,12 +273,12 @@
         <div class="room-list flex-1 overflow-y-auto p-3">
             @foreach($rooms as $r)
                 @php
-                    $isActive = (string)$room->_id === (string)$r->_id;
+                    $isActive = (string)$room->id === (string)$r->id;
                     $initial = strtoupper(substr($r->title ?? 'R', 0, 1));
                 @endphp
 
                 <a
-                    href="{{ route('discussions.show', $r->_id) }}"
+                    href="{{ route('discussions.show', $r->id) }}"
                     class="room-item {{ $isActive ? 'active' : '' }}"
                 >
                     <div class="room-avatar">
@@ -327,7 +327,7 @@
         <div id="messagesBox" class="messages-scroll flex-1 space-y-4 overflow-y-auto bg-slate-50/80 p-4 sm:p-6">
             @forelse($messages as $message)
                 @php
-                    $isMe = (string) $message->user_id === (string) auth()->id();
+                    $isMe = (string) $message->userid === (string) auth()->id();
                     $chatTime = $message->created_at ? $message->created_at->timezone('Asia/Jakarta')->format('d M Y, H:i') : '';
 
                     $rawMessage = $message->message ?? '';
@@ -347,7 +347,7 @@
                         $callType = $callPayload['type'] ?? 'video';
                         $callUser = $callPayload['from_user_name'] ?? $message->user_name ?? 'Pengguna lain';
                         $callLabel = $callType === 'voice' ? 'Telepon suara' : 'Video call';
-                        $isMyInvite = (string) $message->user_id === (string) auth()->id();
+                        $isMyInvite = (string) $message->userid === (string) auth()->id();
                         $cleanMessage = $callUser . ' memulai ' . strtolower($callLabel) . '.';
                     }
                 @endphp
@@ -427,7 +427,7 @@
         </div>
 
         <footer class="border-t border-blue-100/40 bg-white/80 p-4 sm:p-5">
-            <form method="POST" action="{{ route('discussions.message', $room->_id) }}" class="flex gap-3">
+            <form method="POST" action="{{ route('discussions.message', $room->id) }}" class="flex gap-3">
                 @csrf
 
                 <input
@@ -549,9 +549,9 @@ const incomingCallText = document.getElementById('incomingCallText');
 const voiceCallUrl = @json($voiceCallUrl);
 const videoCallUrl = @json($videoCallUrl);
 
-const discussionMessageUrl = @json(route('discussions.message', $room->_id));
-const callStartUrl = @json(route('discussions.call.start', $room->_id));
-const callCheckUrl = @json(route('discussions.call.check', $room->_id));
+const discussionMessageUrl = @json(route('discussions.message', $room->id));
+const callStartUrl = @json(route('discussions.call.start', $room->id));
+const callCheckUrl = @json(route('discussions.call.check', $room->id));
 const csrfToken = @json(csrf_token());
 
 const roomId = @json((string) $room->_id);

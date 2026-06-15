@@ -51,7 +51,7 @@ class AiChatController extends Controller
             ->latest()
             ->get();
 
-        $currentSession = ChatSession::where('_id', $sessionId)
+        $currentSession = ChatSession::where('id', $sessionId)
             ->where('user_id', $user->id)
             ->firstOrFail();
 
@@ -185,7 +185,7 @@ class AiChatController extends Controller
     {
         $user = Auth::user();
 
-        $message = ChatMessage::where('_id', $messageId)
+        $message = ChatMessage::where('id', $messageId)
             ->where('user_id', $user->id)
             ->firstOrFail();
 
@@ -207,7 +207,7 @@ class AiChatController extends Controller
     {
         $user = Auth::user();
 
-        $session = ChatSession::where('_id', $sessionId)
+        $session = ChatSession::where('id', $sessionId)
             ->where('user_id', $user->id)
             ->firstOrFail();
 
@@ -227,7 +227,7 @@ class AiChatController extends Controller
         $sessionId = $request->input('chat_session_id');
 
         if ($sessionId) {
-            $session = ChatSession::where('_id', $sessionId)
+            $session = ChatSession::where('id', $sessionId)
                 ->where('user_id', $user->id)
                 ->first();
 
