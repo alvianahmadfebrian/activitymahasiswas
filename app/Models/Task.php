@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-use MongoDB\Laravel\Eloquent\Model;
+use Illuminate\Database\Eloquent\Model;
 
 class Task extends Model
 {
-    protected $connection = 'mongodb';
-    protected $collection = 'tasks';
+    protected $table = 'tasks';
 
     protected $fillable = [
         'user_id',
@@ -18,5 +17,9 @@ class Task extends Model
         'file_url',
         'file_path',
         'file_name',
+    ];
+
+    protected $casts = [
+        'deadline' => 'datetime',
     ];
 }

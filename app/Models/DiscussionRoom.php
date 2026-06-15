@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-use MongoDB\Laravel\Eloquent\Model;
+use Illuminate\Database\Eloquent\Model;
 
 class DiscussionRoom extends Model
 {
-    protected $connection = 'mongodb';
-    protected $collection = 'discussion_rooms';
+    protected $table = 'discussion_rooms';
 
     protected $fillable = [
         'user_id',

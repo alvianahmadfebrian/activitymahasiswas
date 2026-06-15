@@ -2,13 +2,11 @@
 
 namespace App\Models;
 
-use MongoDB\Laravel\Eloquent\Model;
+use Illuminate\Database\Eloquent\Model;
 
 class ChatSession extends Model
 {
-    protected $connection = 'mongodb';
-
-    protected $collection = 'chat_sessions';
+    protected $table = 'chat_sessions';
 
     protected $fillable = [
         'user_id',

@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-use MongoDB\Laravel\Eloquent\Model;
+use Illuminate\Database\Eloquent\Model;
 
 class DriveFile extends Model
 {
-    protected $connection = 'mongodb';
-    protected $collection = 'drive_files';
+    protected $table = 'drive_files';
 
     protected $fillable = [
         'user_id',
