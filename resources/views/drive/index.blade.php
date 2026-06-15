@@ -5,91 +5,62 @@
 @section('eyebrow', 'File manager')
 
 @section('content')
-
 @php
     $fileCount = $files->where('is_folder', false)->count();
     $folderCount = $files->where('is_folder', true)->count();
 
     $getFileType = function ($file) {
-
         if ($file->is_folder) {
             return [
                 'label' => 'FOLDER',
                 'class' => 'bg-amber-50 text-amber-600 border-amber-200',
                 'svg' => 'folder',
-                'preview' => false,
-                'type' => 'folder',
             ];
         }
 
         $name = $file->name ?? '';
         $mime = $file->mime_type ?? '';
-
-        $ext = strtolower(
-            pathinfo($name, PATHINFO_EXTENSION)
-        );
+        $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
 
         if (!$ext && str_contains($mime, '/')) {
-            $parts = explode('/', $mime);
-            $ext = strtolower(end($parts));
+            $ext = strtolower(last(explode('/', $mime)));
         }
 
-        return match ($ext) {
-
+        return match($ext) {
             'pdf' => [
                 'label' => 'PDF',
                 'class' => 'bg-rose-50 text-rose-600 border-rose-200',
                 'svg' => 'file',
-                'preview' => true,
-                'type' => 'pdf',
             ],
-
             'doc', 'docx' => [
                 'label' => 'WORD',
                 'class' => 'bg-blue-50 text-blue-600 border-blue-200',
                 'svg' => 'file',
-                'preview' => true,
-                'type' => 'doc',
             ],
-
             'xls', 'xlsx', 'csv' => [
                 'label' => 'EXCEL',
                 'class' => 'bg-emerald-50 text-emerald-600 border-emerald-200',
                 'svg' => 'file',
-                'preview' => true,
-                'type' => 'sheet',
             ],
-
             'ppt', 'pptx' => [
                 'label' => 'PPT',
                 'class' => 'bg-violet-50 text-violet-600 border-violet-200',
                 'svg' => 'file',
-                'preview' => true,
-                'type' => 'ppt',
             ],
-
-            'jpg', 'jpeg', 'png', 'gif', 'webp' => [
+            'jpg', 'jpeg', 'png', 'webp', 'gif' => [
                 'label' => 'IMG',
                 'class' => 'bg-indigo-50 text-indigo-600 border-indigo-200',
                 'svg' => 'image',
-                'preview' => true,
-                'type' => 'image',
             ],
-
             'zip', 'rar', '7z' => [
                 'label' => 'ZIP',
                 'class' => 'bg-slate-50 text-slate-500 border-slate-200',
                 'svg' => 'file',
-                'preview' => false,
-                'type' => 'zip',
             ],
-
             default => [
                 'label' => strtoupper($ext ?: 'FILE'),
                 'class' => 'bg-slate-50 text-slate-500 border-slate-200',
                 'svg' => 'file',
-                'preview' => false,
-                'type' => 'file',
             ],
         };
     };
@@ -435,12 +406,9 @@
 </style>
 
 <div class="drive-page space-y-4">
-
     <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-
         <div class="drive-stat">
             <p class="drive-stat-label">Lokasi</p>
-
             <div class="mt-1 text-lg font-semibold text-slate-950 truncate">
                 {{ $folder === 'root' ? 'Root' : $folder }}
             </div>
@@ -448,500 +416,250 @@
 
         <div class="drive-stat">
             <p class="drive-stat-label">Total item</p>
-            <div class="drive-stat-num">
-                {{ $files->count() }}
-            </div>
+            <div class="drive-stat-num">{{ $files->count() }}</div>
         </div>
 
         <div class="drive-stat">
             <p class="drive-stat-label">Folder</p>
-            <div class="drive-stat-num">
-                {{ $folderCount }}
-            </div>
+            <div class="drive-stat-num">{{ $folderCount }}</div>
         </div>
 
         <div class="drive-stat">
             <p class="drive-stat-label">File</p>
-            <div class="drive-stat-num">
-                {{ $fileCount }}
-            </div>
+            <div class="drive-stat-num">{{ $fileCount }}</div>
         </div>
-
     </section>
 
-     <div
-        class="grid h-[calc(100%-100px)] gap-4 overflow-hidden xl:grid-cols-[320px_1fr]"<aside class="drive-card flex h-full flex-col overflow-hidden">
-
-    <div class="drive-panel-head">
-        <h2>Upload file</h2>
-        <p>Simpan materi, tugas, atau dokumen kuliah.</p>
-    </div>
-
-    <div class="border-b border-blue-100/40 px-5 py-5">
-
-        <form
-            method="POST"
-            action="{{ route('drive.upload') }}"
-            enctype="multipart/form-data"
-            class="space-y-4"
-        >
-            @csrf
-
-            <input
-                type="hidden"
-                name="folder"
-                value="{{ $folder }}"
-            >
-
-            <div class="drive-field">
-
-                <label>Lampiran file</label>
-
-                <label
-                    class="drive-file-zone"
-                    for="driveFileInput"
-                >
-                    <svg
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                    >
-                        <path
-                            d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.64 17.2a2 2 0 01-2.83-2.83l8.49-8.48"
-                            stroke="#3b82f6"
-                            stroke-width="1.8"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        />
-                    </svg>
-
-                    <span
-                        id="fileNameText"
-                        class="truncate"
-                    >
-                        Pilih file untuk upload
-                    </span>
-                </label>
-
-                <input
-                    id="driveFileInput"
-                    type="file"
-                    name="file"
-                    class="hidden"
-                    required
-                >
+    <div class="grid h-[calc(100%-100px)] gap-4 overflow-hidden xl:grid-cols-[320px_1fr]">
+        <aside class="drive-card flex h-full flex-col overflow-hidden">
+            <div class="drive-panel-head">
+                <h2>Upload file</h2>
+                <p>Simpan materi, tugas, atau dokumen kuliah.</p>
             </div>
 
-            <button
-                class="drive-btn-primary"
-                type="submit"
-            >
-                Upload File
-            </button>
+            <div class="border-b border-blue-100/40 px-5 py-5">
+                <form method="POST" action="{{ route('drive.upload') }}" enctype="multipart/form-data" class="space-y-4">
+                    @csrf
 
-        </form>
+                    <input type="hidden" name="folder" value="{{ $folder }}">
 
-    </div>
+                    <div class="drive-field">
+                        <label>Lampiran file</label>
+                        <label class="drive-file-zone" for="driveFileInput">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.64 17.2a2 2 0 01-2.83-2.83l8.49-8.48"
+                                    stroke="#3b82f6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span id="fileNameText" class="truncate">Pilih file untuk upload</span>
+                        </label>
 
-    <div class="drive-panel-head">
-        <h2>Buat folder</h2>
-        <p>Kelompokkan file berdasarkan mata kuliah.</p>
-    </div>
+                        <input id="driveFileInput" type="file" name="file" class="hidden" required>
+                    </div>
 
-    <div class="flex-1 overflow-y-auto px-5 py-5">
-
-        <form
-            method="POST"
-            action="{{ route('drive.folder') }}"
-            class="space-y-4"
-        >
-            @csrf
-
-            <input
-                type="hidden"
-                name="current_folder"
-                value="{{ $folder }}"
-            >
-
-            <div class="drive-field">
-                <label>Nama folder</label>
-
-                <input
-                    name="folder_name"
-                    placeholder="Contoh: Semester 4"
-                    class="drive-input"
-                    required
-                >
-            </div>
-
-            <button
-                class="drive-btn-dark"
-                type="submit"
-            >
-                Buat Folder
-            </button>
-
-        </form>
-
-    </div>
-
-</aside>
-
-<section
-    class="drive-card flex h-full min-w-0 flex-col overflow-hidden"
->
-
-    <div class="drive-panel-head">
-
-        <div
-            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-        >
-            <div>
-                <h2>Isi folder</h2>
-                <p>Kelola file dan folder kamu.</p>
-            </div>
-
-            <div class="drive-path">
-                <span>Lokasi:</span>
-
-                <strong
-                    class="font-semibold text-slate-700"
-                >
-                    {{ $folder === 'root' ? 'Root' : $folder }}
-                </strong>
-            </div>
-
-        </div>
-
-    </div>
-
-    <div class="drive-controls">
-
-        @if($folder !== 'root')
-            <a
-                href="{{ route('drive.index') }}"
-                class="drive-back"
-            >
-                Kembali ke Root
-            </a>
-        @endif
-
-        <select
-            id="typeFilter"
-            class="drive-ctrl-input"
-            style="margin-left:auto"
-        >
-            <option value="all">
-                Semua item
-            </option>
-
-            <option value="folder">
-                Folder
-            </option>
-
-            <option value="file">
-                File
-            </option>
-        </select>
-
-        <input
-            id="fileSearch"
-            type="text"
-            placeholder="Cari file atau folder..."
-            class="drive-ctrl-input drive-search"
-        >
-
-    </div>
-
-    <div class="drive-table-wrap">
-
-        <table class="drive-table">
-
-            <thead>
-                <tr>
-                    <th>Nama</th>
-                    <th style="width:110px">Tipe</th>
-                    <th style="width:180px">Keterangan</th>
-                    <th style="width:95px">Buka</th>
-                    <th style="width:52px"></th>
-                </tr>
-            </thead>
-
-            <tbody
-                id="fileList"
-                class="bg-white/30">
-                        @forelse($files as $file)
-
-    @php
-        $type = $getFileType($file);
-
-        $itemType = $file->is_folder
-            ? 'folder'
-            : 'file';
-
-        $searchText = strtolower(
-            trim(
-                ($file->name ?? '') . ' ' .
-                ($file->mime_type ?? '') . ' ' .
-                ($type['label'] ?? '')
-            )
-        );
-
-        $folderPath = $folder === 'root'
-            ? $file->name
-            : $folder.'/'.$file->name;
-    @endphp
-
-    <tr
-        class="drive-row file-row"
-        data-type="{{ $itemType }}"
-        data-search="{{ $searchText }}"
-    >
-        <td>
-
-            @if($file->is_folder)
-
-                <a
-                    href="{{ route('drive.index', ['folder' => $folderPath]) }}"
-                    class="drive-name block hover:text-blue-600"
-                >
-                    {{ $file->name }}
-                </a>
-
-                <div class="drive-sub">
-                    Folder
-                </div>
-
-            @else
-
-                <div class="drive-name">
-                    {{ $file->name }}
-                </div>
-
-                <div class="drive-sub">
-                    {{ $file->mime_type ?? 'File' }}
-                </div>
-
-            @endif
-
-        </td>
-
-        <td>
-            <span
-                class="drive-badge {{ $type['class'] }}"
-            >
-                {{ $type['label'] }}
-            </span>
-        </td>
-
-        <td>
-            <span class="text-xs text-slate-500">
-                {{
-                    $file->is_folder
-                        ? 'Folder dalam drive'
-                        : ($file->mime_type ?? 'File tersimpan')
-                }}
-            </span>
-        </td>
-
-        <td>
-
-            @if($file->is_folder)
-
-                <a
-                    href="{{ route('drive.index', ['folder' => $folderPath]) }}"
-                    class="drive-open"
-                >
-                    Buka
-                </a>
-
-            @else
-
-                @if($type['preview'] ?? false)
-
-                    <button
-                        type="button"
-                        class="drive-open previewBtn"
-                        data-url="{{ $file->url }}"
-                        data-type="{{ $type['type'] ?? 'file' }}"
-                        data-name="{{ $file->name }}"
-                    >
-                        Lihat
+                    <button class="drive-btn-primary" type="submit">
+                        Upload File
                     </button>
+                </form>
+            </div>
 
-                @else
+            <div class="drive-panel-head">
+                <h2>Buat folder</h2>
+                <p>Kelompokkan file berdasarkan mata kuliah.</p>
+            </div>
 
-                    <a
-                        href="{{ $file->url }}"
-                        target="_blank"
-                        rel="noopener"
-                        download
-                        class="drive-open"
-                    >
-                        Download
+            <div class="flex-1 overflow-y-auto px-5 py-5">
+                <form method="POST" action="{{ route('drive.folder') }}" class="space-y-4">
+                    @csrf
+
+                    <input type="hidden" name="current_folder" value="{{ $folder }}">
+
+                    <div class="drive-field">
+                        <label>Nama folder</label>
+                        <input
+                            name="folder_name"
+                            placeholder="Contoh: Semester 4"
+                            class="drive-input"
+                            required
+                        >
+                    </div>
+
+                    <button class="drive-btn-dark" type="submit">
+                        Buat Folder
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <section class="drive-card flex h-full min-w-0 flex-col overflow-hidden">
+            <div class="drive-panel-head">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2>Isi folder</h2>
+                        <p>Kelola file dan folder kamu.</p>
+                    </div>
+
+                    <div class="drive-path">
+                        <span>Lokasi:</span>
+                        <strong class="font-semibold text-slate-700">{{ $folder === 'root' ? 'Root' : $folder }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="drive-controls">
+                @if($folder !== 'root')
+                    <a href="{{ route('drive.index') }}" class="drive-back">
+                        Kembali ke Root
                     </a>
-
                 @endif
 
-            @endif
+                <select id="typeFilter" class="drive-ctrl-input" style="margin-left:auto">
+                    <option value="all">Semua item</option>
+                    <option value="folder">Folder</option>
+                    <option value="file">File</option>
+                </select>
 
-        </td>
-
-        <td class="text-right">
-
-            <form
-                method="POST"
-                action="{{ route('drive.destroy', $file->id) }}"
-                onsubmit="return confirm('Hapus item ini?')"
-            >
-                @csrf
-                @method('DELETE')
-
-                <button
-                    type="submit"
-                    class="drive-del"
-                    title="Hapus"
+                <input
+                    id="fileSearch"
+                    type="text"
+                    placeholder="Cari file atau folder..."
+                    class="drive-ctrl-input drive-search"
                 >
-                    <svg
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                    >
-                        <path
-                            d="M9 3H15M4 7H20M18 7L17.4 18.2C17.3 19.8 16 21 14.4 21H9.6C8 21 6.7 19.8 6.6 18.2L6 7M10 11V17M14 11V17"
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        />
+            </div>
+
+            <div class="drive-table-wrap">
+                <table class="drive-table">
+                    <thead>
+                        <tr>
+                            <th>Nama</th>
+                            <th style="width:110px">Tipe</th>
+                            <th style="width:180px">Keterangan</th>
+                            <th style="width:95px">Buka</th>
+                            <th style="width:52px"></th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="fileList" class="bg-white/30">
+                        @forelse($files as $file)
+                            @php
+                                $type = $getFileType($file);
+                                $itemType = $file->is_folder ? 'folder' : 'file';
+                                $searchText = strtolower(($file->name ?? '') . ' ' . ($file->mime_type ?? '') . ' ' . $type['label']);
+                            @endphp
+
+                            <tr
+                                class="drive-row file-row"
+                                data-type="{{ $itemType }}"
+                                data-search="{{ $searchText }}"
+                            >
+                                <td>
+                                    @if($file->is_folder)
+                                        <a href="{{ route('drive.index', ['folder' => $file->name]) }}" class="drive-name block hover:text-blue-600">
+                                            {{ $file->name }}
+                                        </a>
+                                        <div class="drive-sub">Folder</div>
+                                    @else
+                                        <div class="drive-name">
+                                            {{ $file->name }}
+                                        </div>
+                                        <div class="drive-sub">
+                                            {{ $file->mime_type ?? 'File' }}
+                                        </div>
+                                    @endif
+                                </td>
+
+                                <td>
+                                    <span class="drive-badge {{ $type['class'] }}">
+                                        {{ $type['label'] }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span class="text-xs text-slate-500">
+                                        {{ $file->is_folder ? 'Folder dalam drive' : ($file->mime_type ?? 'File tersimpan') }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    @if($file->is_folder)
+                                        <a href="{{ route('drive.index', ['folder' => $file->name]) }}" class="drive-open">
+                                            Buka
+                                        </a>
+                                    @else
+                                        <a href="{{ $file->url }}" target="_blank" class="drive-open">
+                                            Buka
+                                        </a>
+                                    @endif
+                                </td>
+
+                                <td class="text-right">
+                                    <form method="POST" action="{{ route('drive.destroy', $file->_id) }}" onsubmit="return confirm('Hapus item ini?')">
+                                        @csrf
+                                        @method('DELETE')
+
+                                        <button type="submit" class="drive-del" title="Hapus">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                                                <path d="M9 3H15M4 7H20M18 7L17.4 18.2C17.3 19.8 16 21 14.4 21H9.6C8 21 6.7 19.8 6.6 18.2L6 7M10 11V17M14 11V17"
+                                                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                            </svg>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="drive-empty">
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M3 7.8C3 6.1 4.3 4.8 6 4.8H9.2L11.1 6.7H18C19.7 6.7 21 8 21 9.7V17.2C21 18.9 19.7 20.2 18 20.2H6C4.3 20.2 3 18.9 3 17.2V7.8Z"
+                                            stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+
+                                    <p>
+                                        Folder masih kosong.<br>
+                                        Upload file atau buat folder baru dari panel samping.
+                                    </p>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+
+                <div id="emptyFilterState" class="drive-empty hidden">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="1.6"/>
+                        <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
                     </svg>
-                </button>
 
-            </form>
-
-        </td>
-
-    </tr>
-
-@empty
-
-    <tr>
-
-        <td colspan="5" class="drive-empty">
-
-            <svg viewBox="0 0 24 24" fill="none">
-                <path
-                    d="M3 7.8C3 6.1 4.3 4.8 6 4.8H9.2L11.1 6.7H18C19.7 6.7 21 8 21 9.7V17.2C21 18.9 19.7 20.2 18 20.2H6C4.3 20.2 3 18.9 3 17.2V7.8Z"
-                    stroke="currentColor"
-                    stroke-width="1.6"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                />
-            </svg>
-
-            <p>
-                Folder masih kosong.
-                <br>
-                Upload file atau buat folder baru.
-            </p>
-
-        </td>
-
-    </tr>
-
-@endforelse
-    </tbody>
-        </table>
-
-        <div
-            id="emptyFilterState"
-            class="drive-empty hidden"
-        >
-
-            <svg viewBox="0 0 24 24" fill="none">
-                <circle
-                    cx="11"
-                    cy="11"
-                    r="8"
-                    stroke="currentColor"
-                    stroke-width="1.6"
-                />
-
-                <path
-                    d="M21 21l-4.35-4.35"
-                    stroke="currentColor"
-                    stroke-width="1.6"
-                    stroke-linecap="round"
-                />
-            </svg>
-
-            <p>
-                Item tidak ditemukan.
-                <br>
-                Coba ubah kata kunci atau filter tipe.
-            </p>
-
-        </div>
-
+                    <p>
+                        Item tidak ditemukan.<br>
+                        Coba ubah kata kunci atau filter tipe.
+                    </p>
+                </div>
+            </div>
+        </section>
     </div>
-
-</section>
-
 </div>
-</div>
-
 @endsection
 
 @push('scripts')
 <script>
-
-const fileSearch =
-    document.getElementById('fileSearch');
-
-const typeFilter =
-    document.getElementById('typeFilter');
-
-const fileRows =
-    document.querySelectorAll('.file-row');
-
-const emptyFilterState =
-    document.getElementById('emptyFilterState');
-
-const driveFileInput =
-    document.getElementById('driveFileInput');
-
-const fileNameText =
-    document.getElementById('fileNameText');
+const fileSearch = document.getElementById('fileSearch');
+const typeFilter = document.getElementById('typeFilter');
+const fileRows = document.querySelectorAll('.file-row');
+const emptyFilterState = document.getElementById('emptyFilterState');
+const driveFileInput = document.getElementById('driveFileInput');
+const fileNameText = document.getElementById('fileNameText');
 
 function filterFiles() {
-
-    const keyword =
-        (fileSearch?.value || '')
-            .toLowerCase()
-            .trim();
-
-    const type =
-        typeFilter?.value || 'all';
-
+    const keyword = (fileSearch?.value || '').toLowerCase();
+    const type = typeFilter?.value || 'all';
     let visibleCount = 0;
 
     fileRows.forEach(row => {
+        const rowText = row.dataset.search || row.innerText.toLowerCase();
+        const rowType = row.dataset.type || '';
 
-        const rowText =
-            (row.dataset.search || '')
-                .toLowerCase();
-
-        const rowType =
-            row.dataset.type || '';
-
-        const matchKeyword =
-            rowText.includes(keyword);
-
-        const matchType =
-            type === 'all' ||
-            rowType === type;
+        const matchKeyword = rowText.includes(keyword);
+        const matchType = type === 'all' || rowType === type;
 
         if (matchKeyword && matchType) {
             row.style.display = '';
@@ -949,54 +667,22 @@ function filterFiles() {
         } else {
             row.style.display = 'none';
         }
-
     });
 
     if (emptyFilterState) {
-
-        const hasRows =
-            fileRows.length > 0;
-
-        emptyFilterState.classList.toggle(
-            'hidden',
-            !(hasRows && visibleCount === 0)
-        );
-
+        emptyFilterState.classList.toggle('hidden', visibleCount !== 0 || fileRows.length === 0);
     }
 }
 
-fileSearch?.addEventListener(
-    'input',
-    filterFiles
-);
+fileSearch?.addEventListener('input', filterFiles);
+typeFilter?.addEventListener('change', filterFiles);
 
-typeFilter?.addEventListener(
-    'change',
-    filterFiles
-);
+driveFileInput?.addEventListener('change', function () {
+    const file = this.files?.[0];
 
-driveFileInput?.addEventListener(
-    'change',
-    function () {
-
-        const file =
-            this.files?.[0];
-
-        if (fileNameText) {
-
-            fileNameText.textContent =
-                file
-                    ? file.name
-                    : 'Pilih file untuk upload';
-
-        }
+    if (fileNameText) {
+        fileNameText.textContent = file ? file.name : 'Pilih file untuk upload';
     }
-);
-
-document.addEventListener(
-    'DOMContentLoaded',
-    filterFiles
-);
-
+});
 </script>
 @endpush
