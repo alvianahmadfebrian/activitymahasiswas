@@ -25,15 +25,15 @@
                 <div class="history-list">
                     @forelse($sessions ?? [] as $session)
                         <div class="history-row">
-                            <a href="{{ route('chatbot.show', $session->_id) }}"
-                               class="history-item {{ isset($currentSession) && $currentSession && (string) $currentSession->_id === (string) $session->_id ? 'active' : '' }}">
+                            <a href="{{ route('chatbot.show', $session->id) }}"
+                               class="history-item {{ isset($currentSession) && $currentSession && (string) $currentSession->id === (string) $session->id ? 'active' : '' }}">
                                 <span class="history-text">
                                     {{ \Illuminate\Support\Str::limit($session->title, 32) }}
                                 </span>
                             </a>
 
                             <form method="POST"
-                                  action="{{ route('chatbot.destroy', $session->_id) }}"
+                                  action="{{ route('chatbot.destroy', $session->id) }}"
                                   class="delete-chat-form">
                                 @csrf
                                 @method('DELETE')
@@ -260,7 +260,7 @@
                 </div>
 
                 <form id="chatForm" class="chat-form">
-                    <input type="hidden" id="chatSessionId" value="{{ $currentSession ? $currentSession->_id : '' }}">
+                    <input type="hidden" id="chatSessionId" value="{{ $currentSession ? $currentSession->id : '' }}">
 
                     <input
                         id="fileInput"
