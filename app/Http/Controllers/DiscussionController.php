@@ -278,6 +278,6 @@ private function updateUserOnlineStatus(): void
             ]);
         }
 
-        return redirect()->route('discussions.show', $room->_id);
+        return redirect()->route('discussions.show', $room->id);
     }
 }
