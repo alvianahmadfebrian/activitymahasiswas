@@ -261,11 +261,6 @@ class AiChatController extends Controller
     {
         $apiKey = env('GROQ_API_KEY');
 
-dd([
-    'api_key_exists' => !empty($apiKey),
-    'api_key_prefix' => substr($apiKey, 0, 10),
-]);
-
         if (!$apiKey) {
             return [
                 'reply' => $this->fallbackReply($userMessage),
