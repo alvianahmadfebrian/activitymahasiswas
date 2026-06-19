@@ -271,27 +271,27 @@
         </div>
 
         <div class="room-list flex-1 overflow-y-auto p-3">
-            @foreach($rooms as $r)
-                @php
-                    $isActive = (string)$room->id === (string)$r->id;
-                    $initial = strtoupper(substr($r->title ?? 'R', 0, 1));
-                @endphp
+    @foreach($rooms as $r)
+        @php
+            $isActive = (string) $room->id === (string) $r->id;
+            $initial = strtoupper(substr($r->title ?? 'R', 0, 1));
+        @endphp
 
+        <a
+            href="{{ route('discussions.show', $r->id) }}"
+            class="room-item {{ $isActive ? 'active' : '' }}"
+        >
+            <div class="room-avatar">
+                {{ $initial }}
+            </div>
 
-                    href="{{ route('discussions.show', $r->id) }}"
-                    class="room-item {{ $isActive ? 'active' : '' }}"
-                >
-                    <div class="room-avatar">
-                        {{ $initial }}
-                    </div>
-
-                    <div class="min-w-0 flex-1">
-                        <h3 class="room-title truncate">{{ $r->title }}</h3>
-                        <p class="room-sub truncate">{{ $subtitleFor($r) }}</p>
-                    </div>
-                </a>
-            @endforeach
-        </div>
+            <div class="min-w-0 flex-1">
+                <h3 class="room-title truncate">{{ $r->title }}</h3>
+                <p class="room-sub truncate">{{ $subtitleFor($r) }}</p>
+            </div>
+        </a>
+    @endforeach
+</div>
     </aside>
 
     <section class="chat-card flex min-w-0 flex-col overflow-hidden rounded-l-none">
