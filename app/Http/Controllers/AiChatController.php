@@ -261,6 +261,11 @@ class AiChatController extends Controller
     {
         $apiKey = env('GROQ_API_KEY');
 
+dd([
+    'api_key_exists' => !empty($apiKey),
+    'api_key_prefix' => substr($apiKey, 0, 10),
+]);
+
         if (!$apiKey) {
             return [
                 'reply' => $this->fallbackReply($userMessage),
@@ -270,7 +275,7 @@ class AiChatController extends Controller
         }
 
         // 1. Definisikan System Prompt
-        $systemPrompt = 'Kamu adalah asisten AI CampusHub untuk mahasiswa bernama Lunox. Jawab dengan bahasa Indonesia yang jelas, natural, rapi, dan membantu. ' .
+        $systemPrompt = 'Kamu adalah asisten AI Activity Mahasiswa untuk mahasiswa bernama Lunox. Jawab dengan bahasa Indonesia yang jelas, natural, rapi, dan membantu. ' .
             'Kamu memiliki akses ke beberapa tools berikut jika pengguna memintanya: ' .
             '1. generate_document: gunakan jika user meminta untuk membuat/menghasilkan dokumen PDF atau Word. ' .
             '2. navigate_to_page: gunakan jika user meminta untuk membuka, melihat, pergi ke, atau pindah ke halaman tertentu (dashboard, drive, tugas, diskusi, aktivitas, atau chat baru). ' .
@@ -456,7 +461,6 @@ class AiChatController extends Controller
                     'temperature' => 0.7,
                     'max_tokens' => 1000,
                 ]);
-
             if ($secondResponse->successful()) {
                 $finalReply = $secondResponse->json('choices.0.message.content') ?? 'Tugas selesai dilakukan.';
                 return [
