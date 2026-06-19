@@ -554,7 +554,7 @@ const callStartUrl = @json(route('discussions.call.start', $room->id));
 const callCheckUrl = @json(route('discussions.call.check', $room->id));
 const csrfToken = @json(csrf_token());
 
-const roomId = @json((string) $room->_id);
+const roomId = @json((string) $room->id);
 const lastSeenKey = `campushub_last_seen_call_${roomId}`;
 
 let activeCallType = null;
