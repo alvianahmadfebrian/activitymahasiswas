@@ -34,7 +34,7 @@ class ProfileController extends Controller
         ]);
 
         $emailExists = User::where('email', $data['email'])
-            ->where('_id', '!=', (string) $user->_id)
+            ->where('id', '!=', (string) $user->id)
             ->exists();
 
         if ($emailExists) {
@@ -63,7 +63,7 @@ class ProfileController extends Controller
             $payload['password'] = Hash::make($data['password']);
         }
 
-        User::where('_id', (string) $user->_id)->update($payload);
+        User::where('id', (string) $user->id)->update($payload);
 
         ActivityLogger::log('profile_update', 'Memperbarui data profile');
 
