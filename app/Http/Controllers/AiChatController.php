@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
+use App\Models\DriveFile;
+use App\Services\SupabaseStorageService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -142,28 +145,32 @@ class AiChatController extends Controller
     }
 
     public function download($messageId)
-    {
-        $user = Auth::user();
+{
+    $user = Auth::user();
 
-        $message = ChatMessage::where('id', $messageId)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
+    $message = ChatMessage::where('id', $messageId)
+        ->where('user_id', $user->id)
+        ->firstOrFail();
 
-        if (!$message->file_path) {
-            abort(404);
-        }
+    if (!$message->file_path) {
+        abort(404);
+    }
 
-        $path = storage_path('app/public/' . $message->file_path);
+    $localPath = storage_path('app/public/' . $message->file_path);
 
-        if (!file_exists($path)) {
-            abort(404);
-        }
-
+    if (file_exists($localPath)) {
         return response()->download(
-            $path,
-            $message->file_name ?? basename($path)
+            $localPath,
+            $message->file_name ?? basename($localPath)
         );
     }
+
+    if (!empty($message->file_url)) {
+        return redirect($message->file_url);
+    }
+
+    abort(404);
+}
 
     public function destroy($sessionId)
     {
@@ -416,12 +423,12 @@ class AiChatController extends Controller
                     $content = $args['content'] ?? '';
 
                     if ($format === 'pdf') {
-                        $fileData = $this->makePdfFromAi($title, $content);
-                        $toolResult = "File PDF berhasil dibuat dengan judul '{$title}' dan disimpan di: " . $fileData['url'];
-                    } else {
-                        $fileData = $this->makeWordFromAi($title, $content);
-                        $toolResult = "File Word (.docx) berhasil dibuat dengan judul '{$title}' dan disimpan di: " . $fileData['url'];
-                    }
+    $fileData = $this->makePdfFromAi($title, $content, app(SupabaseStorageService::class));
+    $toolResult = "File PDF berhasil dibuat dengan judul '{$title}' dan disimpan di: " . $fileData['url'];
+} else {
+    $fileData = $this->makeWordFromAi($title, $content, app(SupabaseStorageService::class));
+    $toolResult = "File Word (.docx) berhasil dibuat dengan judul '{$title}' dan disimpan di: " . $fileData['url'];
+}
                 } elseif ($funcName === 'navigate_to_page') {
                     $destination = $args['destination'] ?? 'dashboard';
 
@@ -507,107 +514,146 @@ class AiChatController extends Controller
         return trim($text);
     }
 
-    private function makePdfFromAi(string $title, string $content): array
-    {
-        $pdf = Pdf::loadView('generated.pdf-template', [
-            'title' => $title,
-            'content' => $content,
-        ]);
+    private function makePdfFromAi(string $title, string $content, SupabaseStorageService $storage): array
+{
+    $pdf = Pdf::loadView('generated.pdf-template', [
+        'title' => $title,
+        'content' => $content,
+    ]);
 
-        $pdf->setPaper('a4', 'portrait');
+    $pdf->setPaper('a4', 'portrait');
 
-        $fileName = 'generated/' . Str::slug($title) . '-' . time() . '.pdf';
+    $fileNameOnly = Str::slug($title) . '-' . time() . '.pdf';
+    $tempPath = sys_get_temp_dir() . '/' . $fileNameOnly;
 
-        Storage::disk('public')->put($fileName, $pdf->output());
+    file_put_contents($tempPath, $pdf->output());
 
-        return [
-            'type' => 'pdf',
-            'name' => basename($fileName),
-            'path' => $fileName,
-            'url' => asset('storage/' . $fileName),
-        ];
-    }
+    $uploadedFile = new UploadedFile($tempPath, $fileNameOnly, 'application/pdf', null, true);
 
-    private function makeWordFromAi(string $title, string $content): array
-    {
-        $phpWord = new PhpWord();
+    $upload = $storage->uploadDriveFile($uploadedFile, 'root');
 
-        $phpWord->setDefaultFontName('Calibri');
-        $phpWord->setDefaultFontSize(12);
+    DriveFile::create([
+        'user_id' => (string) Auth::id(),
+        'folder' => 'root',
+        'name' => $upload['original_name'],
+        'original_name' => $upload['original_name'],
+        'mime_type' => $upload['mime_type'],
+        'size' => $upload['size'],
+        'path' => $upload['path'],
+        'url' => $upload['url'],
+        'is_folder' => false,
+    ]);
 
-        $section = $phpWord->addSection([
-            'marginTop' => 1200,
-            'marginRight' => 1000,
-            'marginBottom' => 1200,
-            'marginLeft' => 1000,
-        ]);
+    @unlink($tempPath);
 
-        $section->addText('Lunox AI Document', [
-            'bold' => true,
-            'size' => 10,
-            'color' => '2563EB',
-        ]);
+    return [
+        'type' => 'pdf',
+        'name' => $upload['original_name'],
+        'path' => $upload['path'],
+        'url' => $upload['url'],
+    ];
+}
 
-        $section->addTextBreak(1);
+private function makeWordFromAi(string $title, string $content, SupabaseStorageService $storage): array
+{
+    $phpWord = new PhpWord();
 
-        $section->addText($title, [
-            'bold' => true,
-            'size' => 20,
+    $phpWord->setDefaultFontName('Calibri');
+    $phpWord->setDefaultFontSize(12);
+
+    $section = $phpWord->addSection([
+        'marginTop' => 1200,
+        'marginRight' => 1000,
+        'marginBottom' => 1200,
+        'marginLeft' => 1000,
+    ]);
+
+    $section->addText('Lunox AI Document', [
+        'bold' => true,
+        'size' => 10,
+        'color' => '2563EB',
+    ]);
+
+    $section->addTextBreak(1);
+
+    $section->addText($title, [
+        'bold' => true,
+        'size' => 20,
+        'color' => '111827',
+    ]);
+
+    $section->addTextBreak(1);
+
+    $section->addText('Dibuat otomatis oleh Lunox AI', [
+        'italic' => true,
+        'size' => 10,
+        'color' => '6B7280',
+    ]);
+
+    $section->addTextBreak(2);
+
+    $paragraphs = preg_split("/\r\n|\n|\r/", $content);
+
+    foreach ($paragraphs as $paragraph) {
+        $paragraph = trim($paragraph);
+
+        if ($paragraph === '') {
+            $section->addTextBreak(1);
+            continue;
+        }
+
+        $section->addText($paragraph, [
+            'size' => 12,
             'color' => '111827',
+        ], [
+            'spaceAfter' => 220,
+            'lineHeight' => 1.35,
         ]);
-
-        $section->addTextBreak(1);
-
-        $section->addText('Dibuat otomatis oleh Lunox AI', [
-            'italic' => true,
-            'size' => 10,
-            'color' => '6B7280',
-        ]);
-
-        $section->addTextBreak(2);
-
-        $paragraphs = preg_split("/\r\n|\n|\r/", $content);
-
-        foreach ($paragraphs as $paragraph) {
-            $paragraph = trim($paragraph);
-
-            if ($paragraph === '') {
-                $section->addTextBreak(1);
-                continue;
-            }
-
-            $section->addText($paragraph, [
-                'size' => 12,
-                'color' => '111827',
-            ], [
-                'spaceAfter' => 220,
-                'lineHeight' => 1.35,
-            ]);
-        }
-
-        $section->addTextBreak(2);
-
-        $section->addText('Generated by Lunox AI', [
-            'italic' => true,
-            'size' => 9,
-            'color' => '9CA3AF',
-        ]);
-
-        $fileName = 'generated/' . Str::slug($title) . '-' . time() . '.docx';
-        $path = storage_path('app/public/' . $fileName);
-
-        if (!is_dir(dirname($path))) {
-            mkdir(dirname($path), 0777, true);
-        }
-
-        $writer = IOFactory::createWriter($phpWord, 'Word2007');
-        $writer->save($path);
-
-        return [
-            'type' => 'word',
-            'name' => basename($fileName),
-            'path' => $fileName,
-            'url' => asset('storage/' . $fileName),
-        ];
     }
+
+    $section->addTextBreak(2);
+
+    $section->addText('Generated by Lunox AI', [
+        'italic' => true,
+        'size' => 9,
+        'color' => '9CA3AF',
+    ]);
+
+    $fileNameOnly = Str::slug($title) . '-' . time() . '.docx';
+    $tempPath = sys_get_temp_dir() . '/' . $fileNameOnly;
+
+    $writer = IOFactory::createWriter($phpWord, 'Word2007');
+    $writer->save($tempPath);
+
+    $uploadedFile = new UploadedFile(
+        $tempPath,
+        $fileNameOnly,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        null,
+        true
+    );
+
+    $upload = $storage->uploadDriveFile($uploadedFile, 'root');
+
+    DriveFile::create([
+        'user_id' => (string) Auth::id(),
+        'folder' => 'root',
+        'name' => $upload['original_name'],
+        'original_name' => $upload['original_name'],
+        'mime_type' => $upload['mime_type'],
+        'size' => $upload['size'],
+        'path' => $upload['path'],
+        'url' => $upload['url'],
+        'is_folder' => false,
+    ]);
+
+    @unlink($tempPath);
+
+    return [
+        'type' => 'word',
+        'name' => $upload['original_name'],
+        'path' => $upload['path'],
+        'url' => $upload['url'],
+    ];
+}
 }
