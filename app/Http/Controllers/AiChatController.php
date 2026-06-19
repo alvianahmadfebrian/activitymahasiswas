@@ -190,26 +190,34 @@ class AiChatController extends Controller
             ->with('success', 'Riwayat chat berhasil dihapus.');
     }
 
-    private function getOrCreateSession(Request $request, string $userMessage, $uploadedFile = null): ChatSession
-    {
-        $user = Auth::user();
-        $sessionId = $request->input('chat_session_id');
+private function getOrCreateAiFolder(): string
+{
+    $user = Auth::user();
+    $folderName = 'Hasil AI';
 
-        if ($sessionId) {
-            $session = ChatSession::where('id', $sessionId)
-                ->where('user_id', $user->id)
-                ->first();
+    $existing = DriveFile::where('user_id', (string) $user->id)
+        ->where('is_folder', true)
+        ->where('name', $folderName)
+        ->first();
 
-            if ($session) {
-                return $session;
-            }
-        }
-
-        return ChatSession::create([
-            'user_id' => $user->id,
-            'title' => $this->makeSessionTitle($userMessage, $uploadedFile),
-        ]);
+    if ($existing) {
+        return $existing->name; 
     }
+
+    DriveFile::create([
+        'user_id'       => (string) $user->id,
+        'folder'        => 'root',
+        'name'          => $folderName,
+        'original_name' => $folderName,
+        'mime_type'     => 'folder',
+        'size'          => 0,
+        'path'          => $folderName,
+        'url'           => null,
+        'is_folder'     => true,
+    ]);
+
+    return $folderName;
+}
 
     private function makeSessionTitle(string $message, $uploadedFile = null): string
     {
@@ -517,31 +525,31 @@ class AiChatController extends Controller
     private function makePdfFromAi(string $title, string $content, SupabaseStorageService $storage): array
 {
     $pdf = Pdf::loadView('generated.pdf-template', [
-        'title' => $title,
+        'title'   => $title,
         'content' => $content,
     ]);
-
     $pdf->setPaper('a4', 'portrait');
 
     $fileNameOnly = Str::slug($title) . '-' . time() . '.pdf';
     $tempPath = sys_get_temp_dir() . '/' . $fileNameOnly;
-
     file_put_contents($tempPath, $pdf->output());
 
     $uploadedFile = new UploadedFile($tempPath, $fileNameOnly, 'application/pdf', null, true);
 
-    $upload = $storage->uploadDriveFile($uploadedFile, 'root');
+    $aiFolder = $this->getOrCreateAiFolder(); // <-- ambil/buat folder
+
+    $upload = $storage->uploadDriveFile($uploadedFile, $aiFolder); // <-- pakai folder AI
 
     DriveFile::create([
-        'user_id' => (string) Auth::id(),
-        'folder' => 'root',
-        'name' => $upload['original_name'],
+        'user_id'       => (string) Auth::id(),
+        'folder'        => $aiFolder, // <-- folder AI, bukan 'root'
+        'name'          => $upload['original_name'],
         'original_name' => $upload['original_name'],
-        'mime_type' => $upload['mime_type'],
-        'size' => $upload['size'],
-        'path' => $upload['path'],
-        'url' => $upload['url'],
-        'is_folder' => false,
+        'mime_type'     => $upload['mime_type'],
+        'size'          => $upload['size'],
+        'path'          => $upload['path'],
+        'url'           => $upload['url'],
+        'is_folder'     => false,
     ]);
 
     @unlink($tempPath);
@@ -550,7 +558,7 @@ class AiChatController extends Controller
         'type' => 'pdf',
         'name' => $upload['original_name'],
         'path' => $upload['path'],
-        'url' => $upload['url'],
+        'url'  => $upload['url'],
     ];
 }
 
@@ -619,7 +627,7 @@ private function makeWordFromAi(string $title, string $content, SupabaseStorageS
         'color' => '9CA3AF',
     ]);
 
-    $fileNameOnly = Str::slug($title) . '-' . time() . '.docx';
+        $fileNameOnly = Str::slug($title) . '-' . time() . '.docx';
     $tempPath = sys_get_temp_dir() . '/' . $fileNameOnly;
 
     $writer = IOFactory::createWriter($phpWord, 'Word2007');
@@ -633,18 +641,20 @@ private function makeWordFromAi(string $title, string $content, SupabaseStorageS
         true
     );
 
-    $upload = $storage->uploadDriveFile($uploadedFile, 'root');
+    $aiFolder = $this->getOrCreateAiFolder(); // <-- ambil/buat folder
+
+    $upload = $storage->uploadDriveFile($uploadedFile, $aiFolder); // <-- pakai folder AI
 
     DriveFile::create([
-        'user_id' => (string) Auth::id(),
-        'folder' => 'root',
-        'name' => $upload['original_name'],
+        'user_id'       => (string) Auth::id(),
+        'folder'        => $aiFolder, // <-- folder AI, bukan 'root'
+        'name'          => $upload['original_name'],
         'original_name' => $upload['original_name'],
-        'mime_type' => $upload['mime_type'],
-        'size' => $upload['size'],
-        'path' => $upload['path'],
-        'url' => $upload['url'],
-        'is_folder' => false,
+        'mime_type'     => $upload['mime_type'],
+        'size'          => $upload['size'],
+        'path'          => $upload['path'],
+        'url'           => $upload['url'],
+        'is_folder'     => false,
     ]);
 
     @unlink($tempPath);
@@ -653,7 +663,7 @@ private function makeWordFromAi(string $title, string $content, SupabaseStorageS
         'type' => 'word',
         'name' => $upload['original_name'],
         'path' => $upload['path'],
-        'url' => $upload['url'],
+        'url'  => $upload['url'],
     ];
 }
 }
