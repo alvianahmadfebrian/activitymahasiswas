@@ -42,14 +42,28 @@ class DiscussionController extends Controller
      * Mencegah user lain mengakses room/chat pribadi orang lain.
      */
     private function ensureMember(DiscussionRoom $room): void
-    {
-        $authId = (string) Auth::id();
-        $memberIds = array_map('strval', $room->member_ids ?? []);
+{
+    $authId = (string) Auth::id();
 
-        if (!in_array($authId, $memberIds, true)) {
-            abort(403, 'Anda bukan anggota diskusi ini.');
-        }
+    $memberIds = array_map(
+        'strval',
+        $room->member_ids ?? []
+    );
+
+    if (!in_array($authId, $memberIds, true)) {
+
+        session()->flash(
+            'error',
+            'Anda bukan anggota group ini.'
+        );
+
+        redirect()
+            ->route('discussions.index')
+            ->send();
+
+        exit;
     }
+}
 
     public function index()
     {
