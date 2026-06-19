@@ -334,7 +334,7 @@
                 @foreach($users as $user)
                     <form method="POST" action="{{ route('discussions.private') }}" class="chat-item">
                         @csrf
-                        <input type="hidden" name="target_userid" value="{{ $user->id }}">
+                        <input type="hidden" name="target_user_id" value="{{ $user->id }}">
 
                         <button type="submit" class="ds-item w-full text-left">
                             <div class="relative shrink-0">
@@ -436,7 +436,7 @@
                         <label class="flex cursor-pointer items-center gap-3 rounded-xl bg-white p-3 transition hover:bg-blue-50">
                             <input
                                 type="checkbox"
-                                name="memberids[]"
+                                name="member_ids[]"
                                 value="{{ $user->id }}"
                                 class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                             >

@@ -277,7 +277,7 @@
                     $initial = strtoupper(substr($r->title ?? 'R', 0, 1));
                 @endphp
 
-                <a
+
                     href="{{ route('discussions.show', $r->id) }}"
                     class="room-item {{ $isActive ? 'active' : '' }}"
                 >
@@ -327,7 +327,7 @@
         <div id="messagesBox" class="messages-scroll flex-1 space-y-4 overflow-y-auto bg-slate-50/80 p-4 sm:p-6">
             @forelse($messages as $message)
                 @php
-                    $isMe = (string) $message->userid === (string) auth()->id();
+                    $isMe = (string) $message->user_id === (string) auth()->id();
                     $chatTime = $message->created_at ? $message->created_at->timezone('Asia/Jakarta')->format('d M Y, H:i') : '';
 
                     $rawMessage = $message->message ?? '';
@@ -347,7 +347,7 @@
                         $callType = $callPayload['type'] ?? 'video';
                         $callUser = $callPayload['from_user_name'] ?? $message->user_name ?? 'Pengguna lain';
                         $callLabel = $callType === 'voice' ? 'Telepon suara' : 'Video call';
-                        $isMyInvite = (string) $message->userid === (string) auth()->id();
+                        $isMyInvite = (string) $message->user_id === (string) auth()->id();
                         $cleanMessage = $callUser . ' memulai ' . strtolower($callLabel) . '.';
                     }
                 @endphp
