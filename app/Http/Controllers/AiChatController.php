@@ -145,32 +145,32 @@ class AiChatController extends Controller
     }
 
     public function download($messageId)
-{
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    $message = ChatMessage::where('id', $messageId)
-        ->where('user_id', $user->id)
-        ->firstOrFail();
+        $message = ChatMessage::where('id', $messageId)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
 
-    if (!$message->file_path) {
+        if (!$message->file_path) {
+            abort(404);
+        }
+
+        $localPath = storage_path('app/public/' . $message->file_path);
+
+        if (file_exists($localPath)) {
+            return response()->download(
+                $localPath,
+                $message->file_name ?? basename($localPath)
+            );
+        }
+
+        if (!empty($message->file_url)) {
+            return redirect($message->file_url);
+        }
+
         abort(404);
     }
-
-    $localPath = storage_path('app/public/' . $message->file_path);
-
-    if (file_exists($localPath)) {
-        return response()->download(
-            $localPath,
-            $message->file_name ?? basename($localPath)
-        );
-    }
-
-    if (!empty($message->file_url)) {
-        return redirect($message->file_url);
-    }
-
-    abort(404);
-}
 
     public function destroy($sessionId)
     {
@@ -190,34 +190,59 @@ class AiChatController extends Controller
             ->with('success', 'Riwayat chat berhasil dihapus.');
     }
 
-private function getOrCreateAiFolder(): string
-{
-    $user = Auth::user();
-    $folderName = 'Hasil AI';
+    // =========================================================
+    // PRIVATE METHODS
+    // =========================================================
 
-    $existing = DriveFile::where('user_id', (string) $user->id)
-        ->where('is_folder', true)
-        ->where('name', $folderName)
-        ->first();
+    private function getOrCreateSession(Request $request, string $userMessage, $uploadedFile = null): ChatSession
+    {
+        $user = Auth::user();
+        $sessionId = $request->input('chat_session_id');
 
-    if ($existing) {
-        return $existing->name; 
+        if ($sessionId) {
+            $session = ChatSession::where('id', $sessionId)
+                ->where('user_id', $user->id)
+                ->first();
+
+            if ($session) {
+                return $session;
+            }
+        }
+
+        return ChatSession::create([
+            'user_id' => $user->id,
+            'title' => $this->makeSessionTitle($userMessage, $uploadedFile),
+        ]);
     }
 
-    DriveFile::create([
-        'user_id'       => (string) $user->id,
-        'folder'        => 'root',
-        'name'          => $folderName,
-        'original_name' => $folderName,
-        'mime_type'     => 'folder',
-        'size'          => 0,
-        'path'          => $folderName,
-        'url'           => null,
-        'is_folder'     => true,
-    ]);
+    private function getOrCreateAiFolder(): string
+    {
+        $user = Auth::user();
+        $folderName = 'Hasil AI';
 
-    return $folderName;
-}
+        $existing = DriveFile::where('user_id', (string) $user->id)
+            ->where('is_folder', true)
+            ->where('name', $folderName)
+            ->first();
+
+        if ($existing) {
+            return $existing->name;
+        }
+
+        DriveFile::create([
+            'user_id'       => (string) $user->id,
+            'folder'        => 'root',
+            'name'          => $folderName,
+            'original_name' => $folderName,
+            'mime_type'     => 'folder',
+            'size'          => 0,
+            'path'          => $folderName,
+            'url'           => null,
+            'is_folder'     => true,
+        ]);
+
+        return $folderName;
+    }
 
     private function makeSessionTitle(string $message, $uploadedFile = null): string
     {
@@ -431,12 +456,12 @@ private function getOrCreateAiFolder(): string
                     $content = $args['content'] ?? '';
 
                     if ($format === 'pdf') {
-    $fileData = $this->makePdfFromAi($title, $content, app(SupabaseStorageService::class));
-    $toolResult = "File PDF berhasil dibuat dengan judul '{$title}' dan disimpan di: " . $fileData['url'];
-} else {
-    $fileData = $this->makeWordFromAi($title, $content, app(SupabaseStorageService::class));
-    $toolResult = "File Word (.docx) berhasil dibuat dengan judul '{$title}' dan disimpan di: " . $fileData['url'];
-}
+                        $fileData = $this->makePdfFromAi($title, $content, app(SupabaseStorageService::class));
+                        $toolResult = "File PDF berhasil dibuat dengan judul '{$title}' dan disimpan di folder Hasil AI.";
+                    } else {
+                        $fileData = $this->makeWordFromAi($title, $content, app(SupabaseStorageService::class));
+                        $toolResult = "File Word (.docx) berhasil dibuat dengan judul '{$title}' dan disimpan di folder Hasil AI.";
+                    }
                 } elseif ($funcName === 'navigate_to_page') {
                     $destination = $args['destination'] ?? 'dashboard';
 
@@ -471,6 +496,7 @@ private function getOrCreateAiFolder(): string
                     'temperature' => 0.7,
                     'max_tokens' => 1000,
                 ]);
+
             if ($secondResponse->successful()) {
                 $finalReply = $secondResponse->json('choices.0.message.content') ?? 'Tugas selesai dilakukan.';
                 return [
@@ -482,7 +508,7 @@ private function getOrCreateAiFolder(): string
 
             $fallbackReply = 'Tugas Anda telah diproses.';
             if ($fileData) {
-                $fallbackReply .= ' Dokumen berhasil dibuat.';
+                $fallbackReply .= ' Dokumen berhasil dibuat dan disimpan di folder Hasil AI.';
             }
             if ($redirectUrl) {
                 $fallbackReply .= ' Menuju halaman tujuan...';
@@ -523,147 +549,147 @@ private function getOrCreateAiFolder(): string
     }
 
     private function makePdfFromAi(string $title, string $content, SupabaseStorageService $storage): array
-{
-    $pdf = Pdf::loadView('generated.pdf-template', [
-        'title'   => $title,
-        'content' => $content,
-    ]);
-    $pdf->setPaper('a4', 'portrait');
-
-    $fileNameOnly = Str::slug($title) . '-' . time() . '.pdf';
-    $tempPath = sys_get_temp_dir() . '/' . $fileNameOnly;
-    file_put_contents($tempPath, $pdf->output());
-
-    $uploadedFile = new UploadedFile($tempPath, $fileNameOnly, 'application/pdf', null, true);
-
-    $aiFolder = $this->getOrCreateAiFolder(); // <-- ambil/buat folder
-
-    $upload = $storage->uploadDriveFile($uploadedFile, $aiFolder); // <-- pakai folder AI
-
-    DriveFile::create([
-        'user_id'       => (string) Auth::id(),
-        'folder'        => $aiFolder, // <-- folder AI, bukan 'root'
-        'name'          => $upload['original_name'],
-        'original_name' => $upload['original_name'],
-        'mime_type'     => $upload['mime_type'],
-        'size'          => $upload['size'],
-        'path'          => $upload['path'],
-        'url'           => $upload['url'],
-        'is_folder'     => false,
-    ]);
-
-    @unlink($tempPath);
-
-    return [
-        'type' => 'pdf',
-        'name' => $upload['original_name'],
-        'path' => $upload['path'],
-        'url'  => $upload['url'],
-    ];
-}
-
-private function makeWordFromAi(string $title, string $content, SupabaseStorageService $storage): array
-{
-    $phpWord = new PhpWord();
-
-    $phpWord->setDefaultFontName('Calibri');
-    $phpWord->setDefaultFontSize(12);
-
-    $section = $phpWord->addSection([
-        'marginTop' => 1200,
-        'marginRight' => 1000,
-        'marginBottom' => 1200,
-        'marginLeft' => 1000,
-    ]);
-
-    $section->addText('Lunox AI Document', [
-        'bold' => true,
-        'size' => 10,
-        'color' => '2563EB',
-    ]);
-
-    $section->addTextBreak(1);
-
-    $section->addText($title, [
-        'bold' => true,
-        'size' => 20,
-        'color' => '111827',
-    ]);
-
-    $section->addTextBreak(1);
-
-    $section->addText('Dibuat otomatis oleh Lunox AI', [
-        'italic' => true,
-        'size' => 10,
-        'color' => '6B7280',
-    ]);
-
-    $section->addTextBreak(2);
-
-    $paragraphs = preg_split("/\r\n|\n|\r/", $content);
-
-    foreach ($paragraphs as $paragraph) {
-        $paragraph = trim($paragraph);
-
-        if ($paragraph === '') {
-            $section->addTextBreak(1);
-            continue;
-        }
-
-        $section->addText($paragraph, [
-            'size' => 12,
-            'color' => '111827',
-        ], [
-            'spaceAfter' => 220,
-            'lineHeight' => 1.35,
+    {
+        $pdf = Pdf::loadView('generated.pdf-template', [
+            'title'   => $title,
+            'content' => $content,
         ]);
+        $pdf->setPaper('a4', 'portrait');
+
+        $fileNameOnly = Str::slug($title) . '-' . time() . '.pdf';
+        $tempPath = sys_get_temp_dir() . '/' . $fileNameOnly;
+        file_put_contents($tempPath, $pdf->output());
+
+        $uploadedFile = new UploadedFile($tempPath, $fileNameOnly, 'application/pdf', null, true);
+
+        $aiFolder = $this->getOrCreateAiFolder();
+
+        $upload = $storage->uploadDriveFile($uploadedFile, $aiFolder);
+
+        DriveFile::create([
+            'user_id'       => (string) Auth::id(),
+            'folder'        => $aiFolder,
+            'name'          => $upload['original_name'],
+            'original_name' => $upload['original_name'],
+            'mime_type'     => $upload['mime_type'],
+            'size'          => $upload['size'],
+            'path'          => $upload['path'],
+            'url'           => $upload['url'],
+            'is_folder'     => false,
+        ]);
+
+        @unlink($tempPath);
+
+        return [
+            'type' => 'pdf',
+            'name' => $upload['original_name'],
+            'path' => $upload['path'],
+            'url'  => $upload['url'],
+        ];
     }
 
-    $section->addTextBreak(2);
+    private function makeWordFromAi(string $title, string $content, SupabaseStorageService $storage): array
+    {
+        $phpWord = new PhpWord();
 
-    $section->addText('Generated by Lunox AI', [
-        'italic' => true,
-        'size' => 9,
-        'color' => '9CA3AF',
-    ]);
+        $phpWord->setDefaultFontName('Calibri');
+        $phpWord->setDefaultFontSize(12);
+
+        $section = $phpWord->addSection([
+            'marginTop' => 1200,
+            'marginRight' => 1000,
+            'marginBottom' => 1200,
+            'marginLeft' => 1000,
+        ]);
+
+        $section->addText('Lunox AI Document', [
+            'bold' => true,
+            'size' => 10,
+            'color' => '2563EB',
+        ]);
+
+        $section->addTextBreak(1);
+
+        $section->addText($title, [
+            'bold' => true,
+            'size' => 20,
+            'color' => '111827',
+        ]);
+
+        $section->addTextBreak(1);
+
+        $section->addText('Dibuat otomatis oleh Lunox AI', [
+            'italic' => true,
+            'size' => 10,
+            'color' => '6B7280',
+        ]);
+
+        $section->addTextBreak(2);
+
+        $paragraphs = preg_split("/\r\n|\n|\r/", $content);
+
+        foreach ($paragraphs as $paragraph) {
+            $paragraph = trim($paragraph);
+
+            if ($paragraph === '') {
+                $section->addTextBreak(1);
+                continue;
+            }
+
+            $section->addText($paragraph, [
+                'size' => 12,
+                'color' => '111827',
+            ], [
+                'spaceAfter' => 220,
+                'lineHeight' => 1.35,
+            ]);
+        }
+
+        $section->addTextBreak(2);
+
+        $section->addText('Generated by Lunox AI', [
+            'italic' => true,
+            'size' => 9,
+            'color' => '9CA3AF',
+        ]);
 
         $fileNameOnly = Str::slug($title) . '-' . time() . '.docx';
-    $tempPath = sys_get_temp_dir() . '/' . $fileNameOnly;
+        $tempPath = sys_get_temp_dir() . '/' . $fileNameOnly;
 
-    $writer = IOFactory::createWriter($phpWord, 'Word2007');
-    $writer->save($tempPath);
+        $writer = IOFactory::createWriter($phpWord, 'Word2007');
+        $writer->save($tempPath);
 
-    $uploadedFile = new UploadedFile(
-        $tempPath,
-        $fileNameOnly,
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        null,
-        true
-    );
+        $uploadedFile = new UploadedFile(
+            $tempPath,
+            $fileNameOnly,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            null,
+            true
+        );
 
-    $aiFolder = $this->getOrCreateAiFolder(); // <-- ambil/buat folder
+        $aiFolder = $this->getOrCreateAiFolder();
 
-    $upload = $storage->uploadDriveFile($uploadedFile, $aiFolder); // <-- pakai folder AI
+        $upload = $storage->uploadDriveFile($uploadedFile, $aiFolder);
 
-    DriveFile::create([
-        'user_id'       => (string) Auth::id(),
-        'folder'        => $aiFolder, // <-- folder AI, bukan 'root'
-        'name'          => $upload['original_name'],
-        'original_name' => $upload['original_name'],
-        'mime_type'     => $upload['mime_type'],
-        'size'          => $upload['size'],
-        'path'          => $upload['path'],
-        'url'           => $upload['url'],
-        'is_folder'     => false,
-    ]);
+        DriveFile::create([
+            'user_id'       => (string) Auth::id(),
+            'folder'        => $aiFolder,
+            'name'          => $upload['original_name'],
+            'original_name' => $upload['original_name'],
+            'mime_type'     => $upload['mime_type'],
+            'size'          => $upload['size'],
+            'path'          => $upload['path'],
+            'url'           => $upload['url'],
+            'is_folder'     => false,
+        ]);
 
-    @unlink($tempPath);
+        @unlink($tempPath);
 
-    return [
-        'type' => 'word',
-        'name' => $upload['original_name'],
-        'path' => $upload['path'],
-        'url'  => $upload['url'],
-    ];
-}
+        return [
+            'type' => 'word',
+            'name' => $upload['original_name'],
+            'path' => $upload['path'],
+            'url'  => $upload['url'],
+        ];
+    }
 }
