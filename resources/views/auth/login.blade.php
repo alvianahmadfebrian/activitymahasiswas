@@ -99,14 +99,17 @@
                                 name="email"
                                 type="email"
                                 value="{{ old('email') }}"
-                                class="w-full rounded-2xl border border-slate-200/80 bg-white/85 pl-11 pr-4 py-3.5 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                class="w-full rounded-2xl border {{ $errors->has('email') ? 'border-red-500 bg-red-50/20 focus:ring-red-100 focus:border-red-500' : 'border-slate-200/80 bg-white/85 focus:ring-blue-100 focus:border-blue-500' }} pl-11 pr-4 py-3.5 text-slate-800 outline-none transition placeholder:text-slate-400 focus:bg-white focus:ring-4"
                                 placeholder="nama@email.com"
                                 required
                                 autofocus
                             >
                         </div>
                         @error('email')
-                            <p class="mt-1.5 text-xs text-red-500">{{ $message }}</p>
+                            <p class="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-500">
+                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                                {{ $message }}
+                            </p>
                         @enderror
                     </div>
 
@@ -124,7 +127,7 @@
                                 name="password"
                                 type="password"
                                 id="password"
-                                class="w-full rounded-2xl border border-slate-200/80 bg-white/85 pl-11 pr-12 py-3.5 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                class="w-full rounded-2xl border {{ $errors->has('password') ? 'border-red-500 bg-red-50/20 focus:ring-red-100 focus:border-red-500' : 'border-slate-200/80 bg-white/85 focus:ring-blue-100 focus:border-blue-500' }} pl-11 pr-12 py-3.5 text-slate-800 outline-none transition placeholder:text-slate-400 focus:bg-white focus:ring-4"
                                 placeholder="Masukkan password"
                                 required
                             >
@@ -136,7 +139,10 @@
                             </button>
                         </div>
                         @error('password')
-                            <p class="mt-1.5 text-xs text-red-500">{{ $message }}</p>
+                            <p class="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-500">
+                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                                {{ $message }}
+                            </p>
                         @enderror
                     </div>
 
