@@ -79,7 +79,7 @@ private function updateUserOnlineStatus(): void
 
         ActivityLogger::log('discussion_create', 'Membuat group diskusi: ' . $data['title']);
 
-        return redirect()->route('discussions.show', $room->_id)
+        return redirect()->route('discussions.show', $room->id)
             ->with('success', 'Group diskusi berhasil dibuat.');
     }
 
