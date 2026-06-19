@@ -54,6 +54,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/discussions/{id}/leave', [DiscussionController::class, 'leaveGroup'])
     ->name('discussions.leave');
 
+
+    Route::get('discussions/{id}/poll', [DiscussionController::class, 'pollMessages'])->name('discussions.poll');
+
 Route::post('/discussions/{id}/kick/{userId}', [DiscussionController::class, 'kickMember'])
     ->name('discussions.kick');
 

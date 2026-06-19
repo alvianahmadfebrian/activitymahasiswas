@@ -17,6 +17,9 @@
 
     $voiceCallUrl = 'https://meet.jit.si/' . $callRoomName . '#config.startAudioOnly=true&config.startWithVideoMuted=true&config.prejoinPageEnabled=false';
     $videoCallUrl = 'https://meet.jit.si/' . $callRoomName . '#config.startAudioOnly=false&config.startWithVideoMuted=false&config.prejoinPageEnabled=false';
+
+    $lastMessage = $messages->last();
+    $initialAfter = $lastMessage && $lastMessage->created_at ? $lastMessage->created_at->toISOString() : null;
 @endphp
 
 <style>
@@ -101,11 +104,27 @@
         font-size: 13px;
         font-weight: 700;
         flex-shrink: 0;
+        position: relative;
     }
 
     .room-item.active .room-avatar {
         background: rgba(255,255,255,.18);
         color: #fff;
+    }
+
+    .room-online-dot {
+        position: absolute;
+        bottom: -1px;
+        right: -1px;
+        width: 11px;
+        height: 11px;
+        border-radius: 999px;
+        border: 2px solid #fff;
+        background: #cbd5e1;
+    }
+
+    .room-online-dot.on {
+        background: #10b981;
     }
 
     .room-title {
@@ -198,6 +217,27 @@
         font-weight: 500;
     }
 
+    .msg-sending {
+        opacity: .55;
+    }
+
+    .day-divider {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 10px 0;
+    }
+
+    .day-divider span {
+        font-size: 11px;
+        font-weight: 650;
+        color: #64748b;
+        background: rgba(255,255,255,.85);
+        border: 1px solid rgba(200, 220, 255, .45);
+        border-radius: 999px;
+        padding: 4px 12px;
+    }
+
     .call-log-card {
         display: inline-flex;
         align-items: center;
@@ -245,6 +285,21 @@
         border: 1px solid rgba(200, 220, 255, .55);
         border-radius: 24px;
         box-shadow: 0 20px 70px rgba(15, 23, 42, .20);
+    }
+
+    .header-online-dot {
+        position: absolute;
+        bottom: -1px;
+        right: -1px;
+        width: 11px;
+        height: 11px;
+        border-radius: 999px;
+        border: 2px solid #fff;
+        background: #cbd5e1;
+    }
+
+    .header-online-dot.on {
+        background: #10b981;
     }
 </style>
 
@@ -299,12 +354,20 @@
             <div class="flex min-w-0 items-center gap-3">
                 <div class="room-avatar">
                     {{ strtoupper(substr($room->title ?? 'R', 0, 1)) }}
+
+                    @if($otherUser)
+                        <span class="header-online-dot {{ !empty($otherUser->is_online) ? 'on' : '' }}"></span>
+                    @endif
                 </div>
 
                 <div class="min-w-0">
                     <h2 class="truncate text-[15px] font-bold text-slate-950">{{ $room->title }}</h2>
-                    <p class="truncate text-xs text-slate-500">
-                        {{ $room->type === 'private' ? 'Chat pribadi' : ($room->course ?: 'Group diskusi') }}
+                    <p id="headerSubtitle" class="truncate text-xs text-slate-500">
+                        @if($otherUser)
+                            {{ !empty($otherUser->is_online) ? 'Online' : 'Offline' }}
+                        @else
+                            {{ $room->course ?: 'Group diskusi' }}
+                        @endif
                     </p>
                 </div>
             </div>
@@ -363,10 +426,13 @@
         </header>
 
         <div id="messagesBox" class="messages-scroll flex-1 space-y-4 overflow-y-auto bg-slate-50/80 p-4 sm:p-6">
+            @php $lastDateLabel = null; @endphp
+
             @forelse($messages as $message)
                 @php
                     $isMe = (string) $message->user_id === (string) auth()->id();
-                    $chatTime = $message->created_at ? $message->created_at->timezone('Asia/Jakarta')->format('d M Y, H:i') : '';
+                    $chatTime = $message->created_at ? $message->created_at->timezone('Asia/Jakarta')->format('H:i') : '';
+                    $dateLabel = $message->created_at ? $message->created_at->timezone('Asia/Jakarta')->translatedFormat('d F Y') : '';
 
                     $rawMessage = $message->message ?? '';
                     $isCallLog = str_starts_with($rawMessage, 'CALL_LOG::');
@@ -388,7 +454,14 @@
                         $isMyInvite = (string) $message->user_id === (string) auth()->id();
                         $cleanMessage = $callUser . ' memulai ' . strtolower($callLabel) . '.';
                     }
+
+                    $showDateDivider = $dateLabel && $dateLabel !== $lastDateLabel;
+                    $lastDateLabel = $dateLabel ?: $lastDateLabel;
                 @endphp
+
+                @if($showDateDivider)
+                    <div class="day-divider"><span>{{ $dateLabel }}</span></div>
+                @endif
 
                 @if($isCallInvite)
                     <div class="flex justify-center">
@@ -465,10 +538,11 @@
         </div>
 
         <footer class="border-t border-blue-100/40 bg-white/80 p-4 sm:p-5">
-            <form method="POST" action="{{ route('discussions.message', $room->id) }}" class="flex gap-3">
+            <form id="sendMessageForm" class="flex gap-3">
                 @csrf
 
                 <input
+                    id="messageInput"
                     name="message"
                     placeholder="Tulis pesan..."
                     required
@@ -478,6 +552,7 @@
 
                 <button
                     type="submit"
+                    id="sendMessageBtn"
                     class="call-btn video px-5"
                 >
                     Kirim
@@ -485,6 +560,50 @@
             </form>
         </footer>
     </section>
+</div>
+
+<div id="membersModal" class="modal-backdrop hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0" onclick="document.getElementById('membersModal').classList.add('hidden')"></div>
+
+    <div class="modal-panel relative w-full max-w-md p-6">
+        <button
+            type="button"
+            onclick="document.getElementById('membersModal').classList.add('hidden')"
+            class="absolute right-5 top-5 h-9 w-9 rounded-xl bg-slate-100 text-sm font-black text-slate-600 hover:bg-slate-200"
+        >
+            ×
+        </button>
+
+        <h2 class="text-lg font-black text-slate-950">Anggota</h2>
+        <p class="mt-1 text-xs text-slate-500">{{ $room->title }}</p>
+
+        <div class="mt-5 max-h-72 space-y-2 overflow-y-auto">
+            @php
+                $memberIds = array_map('strval', $room->member_ids ?? []);
+                $isOwner = (string) $room->user_id === (string) auth()->id();
+            @endphp
+
+            @foreach($users->whereIn('id', $memberIds)->push(auth()->user()) as $m)
+                @continue(!in_array((string) $m->id, $memberIds, true))
+
+                <div class="flex items-center justify-between rounded-xl bg-slate-50 p-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-semibold text-slate-700">{{ $m->name }}</span>
+                        @if((string) $room->user_id === (string) $m->id)
+                            <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">Owner</span>
+                        @endif
+                    </div>
+
+                    @if($isOwner && (string) $m->id !== (string) auth()->id())
+                        <form method="POST" action="{{ route('discussions.kick', [$room->id, $m->id]) }}" onsubmit="return confirm('Keluarkan {{ $m->name }}?')">
+                            @csrf
+                            <button type="submit" class="text-xs font-bold text-red-600 hover:text-red-700">Keluarkan</button>
+                        </form>
+                    @endif
+                </div>
+            @endforeach
+        </div>
+    </div>
 </div>
 
 <div id="callModal" class="modal-backdrop hidden fixed inset-0 z-[9999] p-3 sm:p-6">
@@ -588,6 +707,7 @@ const voiceCallUrl = @json($voiceCallUrl);
 const videoCallUrl = @json($videoCallUrl);
 
 const discussionMessageUrl = @json(route('discussions.message', $room->id));
+const pollMessagesUrl = @json(route('discussions.poll', $room->id));
 const callStartUrl = @json(route('discussions.call.start', $room->id));
 const callCheckUrl = @json(route('discussions.call.check', $room->id));
 const csrfToken = @json(csrf_token());
@@ -601,6 +721,139 @@ let callIsActive = false;
 let pendingIncomingCall = null;
 let pollingCall = true;
 
+let lastMessageTimestamp = @json($initialAfter);
+let lastRenderedDateLabel = @json($lastDateLabel ?? null);
+
+// ===== Kirim pesan via AJAX (tanpa reload, mirip WA) =====
+const sendForm = document.getElementById('sendMessageForm');
+const messageInput = document.getElementById('messageInput');
+const sendBtn = document.getElementById('sendMessageBtn');
+
+sendForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const text = messageInput.value.trim();
+    if (!text) return;
+
+    messageInput.value = '';
+    sendBtn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('_token', csrfToken);
+    formData.append('message', text);
+
+    try {
+        const response = await fetch(discussionMessageUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.message) {
+            appendChatMessage(data.message);
+            if (data.message.created_at) {
+                lastMessageTimestamp = data.message.created_at;
+            }
+        }
+    } catch (error) {
+        console.error('Gagal mengirim pesan:', error);
+        messageInput.value = text;
+    } finally {
+        sendBtn.disabled = false;
+        messageInput.focus();
+    }
+});
+
+function dayDividerLabel(isoString) {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function appendChatMessage(msg) {
+    if (!box) return;
+
+    const label = dayDividerLabel(msg.created_at);
+
+    if (label && label !== lastRenderedDateLabel) {
+        const divider = document.createElement('div');
+        divider.className = 'day-divider';
+        divider.innerHTML = `<span>${escapeHtml(label)}</span>`;
+        box.appendChild(divider);
+        lastRenderedDateLabel = label;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.className = `flex ${msg.is_me ? 'justify-end' : 'justify-start'}`;
+
+    const inner = document.createElement('div');
+    inner.className = 'max-w-[82%] sm:max-w-[70%]';
+
+    let nameHtml = '';
+    if (!msg.is_me) {
+        nameHtml = `<div class="mb-1 ml-2 text-xs font-semibold text-slate-500">${escapeHtml(msg.user_name || 'Pengguna')}</div>`;
+    }
+
+    inner.innerHTML = `
+        ${nameHtml}
+        <div class="msg-bubble ${msg.is_me ? 'msg-me' : 'msg-other'}">
+            <p class="whitespace-pre-wrap"></p>
+        </div>
+        <div class="msg-time ${msg.is_me ? 'text-right mr-2' : 'ml-2'}">${escapeHtml(msg.time || '')}</div>
+    `;
+
+    inner.querySelector('.msg-bubble p').textContent = msg.message;
+
+    wrapper.appendChild(inner);
+    box.appendChild(wrapper);
+    box.scrollTop = box.scrollHeight;
+}
+
+// ===== Polling pesan baru (real-time ala WA) =====
+async function pollNewMessages() {
+    if (!lastMessageTimestamp) return;
+
+    try {
+        const response = await fetch(`${pollMessagesUrl}?after=${encodeURIComponent(lastMessageTimestamp)}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            }
+        });
+
+        const data = await response.json();
+
+        if (!data.success || !Array.isArray(data.messages) || data.messages.length === 0) return;
+
+        const wasNearBottom = box && (box.scrollHeight - box.scrollTop - box.clientHeight < 120);
+
+        data.messages.forEach(msg => {
+            // pesan CALL_LOG / CALL_INVITE biarkan ditangani oleh polling panggilan terpisah,
+            // tapi tetap tampilkan sebagai bubble teks biasa kalau bukan tipe call
+            if (typeof msg.message === 'string' && (msg.message.startsWith('CALL_LOG::') || msg.message.startsWith('CALL_INVITE::'))) {
+                lastMessageTimestamp = msg.created_at || lastMessageTimestamp;
+                return;
+            }
+
+            appendChatMessage(msg);
+            lastMessageTimestamp = msg.created_at || lastMessageTimestamp;
+        });
+
+        if (wasNearBottom && box) {
+            box.scrollTop = box.scrollHeight;
+        }
+    } catch (error) {
+        console.error('Gagal polling pesan baru:', error);
+    }
+}
+
+// ===== Panggilan (logic asli dipertahankan) =====
 function openCallModal(type = 'video', incoming = false) {
     callModal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -712,7 +965,7 @@ async function sendCallLog(message) {
     formData.append('message', 'CALL_LOG::' + message);
 
     try {
-        await fetch(discussionMessageUrl, {
+        const response = await fetch(discussionMessageUrl, {
             method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': csrfToken,
@@ -720,6 +973,11 @@ async function sendCallLog(message) {
             },
             body: formData
         });
+
+        const data = await response.json();
+        if (data.success && data.message && data.message.created_at) {
+            lastMessageTimestamp = data.message.created_at;
+        }
     } catch (error) {
         console.error('Gagal menyimpan log panggilan:', error);
     }
@@ -879,5 +1137,6 @@ document.addEventListener('keydown', function (event) {
 });
 
 setInterval(checkIncomingCall, 2500);
+setInterval(pollNewMessages, 2000);
 </script>
 @endpush

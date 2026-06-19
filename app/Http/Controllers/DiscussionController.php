@@ -39,31 +39,50 @@ class DiscussionController extends Controller
 
     /**
      * Pastikan user yang sedang login adalah anggota room.
-     * Mencegah user lain mengakses room/chat pribadi orang lain.
      */
     private function ensureMember(DiscussionRoom $room): void
-{
-    $authId = (string) Auth::id();
+    {
+        $authId = (string) Auth::id();
 
-    $memberIds = array_map(
-        'strval',
-        $room->member_ids ?? []
-    );
+        $memberIds = array_map('strval', $room->member_ids ?? []);
 
-    if (!in_array($authId, $memberIds, true)) {
-
-        session()->flash(
-            'error',
-            'Anda bukan anggota group ini.'
-        );
-
-        redirect()
-            ->route('discussions.index')
-            ->send();
-
-        exit;
+        if (!in_array($authId, $memberIds, true)) {
+            session()->flash('error', 'Anda bukan anggota group ini.');
+            redirect()->route('discussions.index')->send();
+            exit;
+        }
     }
-}
+
+    /**
+     * Ubah teks pesan mentah (termasuk CALL_LOG/CALL_INVITE) jadi preview singkat untuk list room.
+     */
+    private function previewMessage(?DiscussionMessage $message, string $authId): string
+    {
+        if (!$message) {
+            return 'Belum ada pesan.';
+        }
+
+        $text = (string) ($message->message ?? '');
+        $prefix = (string) $message->user_id === $authId ? 'Kamu: ' : '';
+
+        if (str_starts_with($text, 'CALL_INVITE::')) {
+            $payload = json_decode(str_replace('CALL_INVITE::', '', $text), true);
+            $type = $payload['type'] ?? 'video';
+            return ($type === 'voice' ? '📞 Telepon suara' : '🎥 Video call');
+        }
+
+        if (str_starts_with($text, 'CALL_LOG::')) {
+            return str_replace('CALL_LOG::', '', $text);
+        }
+
+        $clean = trim($text);
+
+        if (mb_strlen($clean) > 42) {
+            $clean = mb_substr($clean, 0, 42) . '…';
+        }
+
+        return $prefix . $clean;
+    }
 
     public function index()
     {
@@ -72,6 +91,25 @@ class DiscussionController extends Controller
         $authId = (string) Auth::id();
 
         $rooms = DiscussionRoom::orderBy('updated_at', 'desc')->get();
+
+        $roomIds = $rooms->pluck('id')->map(fn ($id) => (string) $id)->all();
+
+        $lastMessages = DiscussionMessage::whereIn('room_id', $roomIds)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->groupBy(fn ($m) => (string) $m->room_id)
+            ->map(fn ($group) => $group->first());
+
+        $rooms = $rooms->map(function ($room) use ($lastMessages, $authId) {
+            $last = $lastMessages->get((string) $room->id);
+
+            $room->preview_text = $this->previewMessage($last, $authId);
+            $room->preview_time = $last && $last->created_at
+                ? $last->created_at->timezone('Asia/Jakarta')->format('H:i')
+                : ($room->created_at ? $room->created_at->timezone('Asia/Jakarta')->format('H:i') : '');
+
+            return $room;
+        });
 
         $users = User::where('id', '!=', $authId)->get()->map(function ($user) {
             $user->is_online = $this->isUserOnline($user);
@@ -132,7 +170,22 @@ class DiscussionController extends Controller
             return $user;
         });
 
-        return view('discussions.show', compact('room', 'messages', 'rooms', 'users'));
+        $otherUser = null;
+
+        if (($room->type ?? 'group') === 'private') {
+            $memberIds = array_map('strval', $room->member_ids ?? []);
+            $otherId = collect($memberIds)->first(fn ($m) => $m !== $authId);
+
+            if ($otherId) {
+                $otherUser = User::find($otherId);
+
+                if ($otherUser) {
+                    $otherUser->is_online = $this->isUserOnline($otherUser);
+                }
+            }
+        }
+
+        return view('discussions.show', compact('room', 'messages', 'rooms', 'users', 'otherUser'));
     }
 
     public function sendMessage(Request $request, string $id)
@@ -162,11 +215,64 @@ class DiscussionController extends Controller
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message_id' => (string) $message->id,
+                'message' => [
+                    'id' => (string) $message->id,
+                    'user_id' => (string) $message->user_id,
+                    'user_name' => $message->user_name,
+                    'message' => $message->message,
+                    'is_me' => true,
+                    'created_at' => optional($message->created_at)->toISOString(),
+                    'time' => optional($message->created_at)->timezone('Asia/Jakarta')->format('H:i'),
+                ],
             ]);
         }
 
         return back();
+    }
+
+    /**
+     * Polling pesan baru (dipanggil berkala dari JS, mirip "live update" WA).
+     */
+    public function pollMessages(Request $request, string $id)
+    {
+        $room = DiscussionRoom::findOrFail($id);
+
+        $this->ensureMember($room);
+
+        $authId = (string) Auth::id();
+        $after = $request->query('after');
+
+        $query = DiscussionMessage::where('room_id', $id)->orderBy('created_at', 'asc');
+
+        if ($after) {
+            try {
+                $afterDate = Carbon::parse($after);
+                $query->where('created_at', '>', $afterDate);
+            } catch (\Throwable $e) {
+                $query->whereRaw('1 = 0');
+            }
+        } else {
+            $query->whereRaw('1 = 0');
+        }
+
+        $messages = $query->get();
+
+        $this->updateUserOnlineStatus();
+
+        return response()->json([
+            'success' => true,
+            'messages' => $messages->map(function ($m) use ($authId) {
+                return [
+                    'id' => (string) $m->id,
+                    'user_id' => (string) $m->user_id,
+                    'user_name' => $m->user_name,
+                    'message' => $m->message,
+                    'is_me' => (string) $m->user_id === $authId,
+                    'created_at' => optional($m->created_at)->toISOString(),
+                    'time' => optional($m->created_at)->timezone('Asia/Jakarta')->format('H:i'),
+                ];
+            }),
+        ]);
     }
 
     public function startCall(Request $request, string $id)
@@ -300,14 +406,12 @@ class DiscussionController extends Controller
             fn ($member) => (string) $member !== (string) Auth::id()
         ));
 
-        // Jika owner keluar dan masih ada anggota lain, pindahkan kepemilikan
         if ((string) $room->user_id === (string) Auth::id() && count($memberIds) > 0) {
             $room->user_id = (string) $memberIds[0];
         }
 
         $room->member_ids = $memberIds;
 
-        // Jika tidak ada anggota tersisa, hapus room beserta pesannya
         if (count($memberIds) === 0) {
             DiscussionMessage::where('room_id', $room->id)->delete();
             $room->delete();

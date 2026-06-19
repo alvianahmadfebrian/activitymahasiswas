@@ -6,25 +6,9 @@
 
 @section('content')
 @php
-    $subtitleFor = function ($room) {
-        if (!empty($room->description)) return $room->description;
-        if (!empty($room->course)) return $room->course;
-        return ($room->type ?? 'group') === 'group' ? 'Group diskusi' : 'Chat pribadi';
-    };
-
-    $formatTime = function ($date) {
-        if (!$date) return '';
-
-        try {
-            return \Carbon\Carbon::parse($date)->timezone('Asia/Jakarta')->format('H:i');
-        } catch (\Throwable $e) {
-            return '';
-        }
-    };
-
-    $roomCount = $rooms->count();
     $userCount = $users->count();
     $onlineCount = $users->where('is_online', true)->count();
+    $roomCount = $rooms->count();
 @endphp
 
 <style>
@@ -118,23 +102,6 @@
         background: #1d4ed8;
     }
 
-    .ds-btn-dark {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 9px 13px;
-        background: #0f172a;
-        color: #fff;
-        border-radius: 10px;
-        font-size: 13px;
-        font-weight: 600;
-        transition: .15s ease;
-    }
-
-    .ds-btn-dark:hover {
-        background: #1e293b;
-    }
-
     .ds-list {
         overflow-y: auto;
     }
@@ -163,8 +130,8 @@
     }
 
     .ds-avatar {
-        width: 42px;
-        height: 42px;
+        width: 44px;
+        height: 44px;
         border-radius: 14px;
         background: #eff6ff;
         color: #2563eb;
@@ -175,6 +142,7 @@
         font-weight: 700;
         flex-shrink: 0;
         overflow: hidden;
+        position: relative;
     }
 
     .ds-avatar.private {
@@ -182,8 +150,23 @@
         color: #475569;
     }
 
+    .ds-online-dot {
+        position: absolute;
+        bottom: -1px;
+        right: -1px;
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        border: 2px solid #fff;
+        background: #cbd5e1;
+    }
+
+    .ds-online-dot.on {
+        background: #10b981;
+    }
+
     .ds-title {
-        font-size: 13px;
+        font-size: 13.5px;
         font-weight: 650;
         color: #0f172a;
     }
@@ -192,6 +175,10 @@
         margin-top: 2px;
         font-size: 12px;
         color: #94a3b8;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .ds-time {
@@ -274,7 +261,7 @@
         </div>
     </section>
 
-    <div class="grid h-[calc(100%-100px)] gap-4 overflow-hidden xl:grid-cols-[360px_1fr]">
+    <div class="grid h-[calc(100%-100px)] gap-4 overflow-hidden xl:grid-cols-[380px_1fr]">
         <aside class="ds-card flex h-full flex-col overflow-hidden">
             <div class="ds-panel-head">
                 <div class="flex items-center justify-between gap-3">
@@ -315,10 +302,10 @@
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center justify-between gap-3">
                                 <h3 class="ds-title truncate">{{ $room->title }}</h3>
-                                <span class="ds-time">{{ $formatTime($room->updated_at ?? null) }}</span>
+                                <span class="ds-time">{{ $room->preview_time }}</span>
                             </div>
 
-                            <p class="ds-sub truncate">{{ $subtitleFor($room) }}</p>
+                            <p class="ds-sub">{{ $room->preview_text }}</p>
                         </div>
                     </a>
                 @empty
@@ -339,14 +326,16 @@
                         <button type="submit" class="ds-item w-full text-left">
                             <div class="relative shrink-0">
                                 @if(!empty($user->photo_url))
-                                    <img src="{{ $user->photo_url }}" class="h-[42px] w-[42px] rounded-[14px] object-cover" alt="{{ $user->name }}">
+                                    <div class="ds-avatar private" style="padding:0;">
+                                        <img src="{{ $user->photo_url }}" class="h-full w-full object-cover" alt="{{ $user->name }}">
+                                        <span class="ds-online-dot {{ !empty($user->is_online) ? 'on' : '' }}"></span>
+                                    </div>
                                 @else
                                     <div class="ds-avatar private">
                                         {{ strtoupper(substr($user->name, 0, 1)) }}
+                                        <span class="ds-online-dot {{ !empty($user->is_online) ? 'on' : '' }}"></span>
                                     </div>
                                 @endif
-
-                                <span class="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white {{ !empty($user->is_online) ? 'bg-emerald-500' : 'bg-slate-300' }}"></span>
                             </div>
 
                             <div class="min-w-0 flex-1">
