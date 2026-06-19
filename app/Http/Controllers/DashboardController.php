@@ -18,7 +18,9 @@ class DashboardController extends Controller
             'totalTasks' => Task::where('user_id', $userId)->count(),
             'doneTasks' => Task::where('user_id', $userId)->where('status', 'selesai')->count(),
             'totalFiles' => DriveFile::where('user_id', $userId)->where('is_folder', false)->count(),
-            'totalRooms' => DiscussionRoom::count(),
+            'totalRooms' => DiscussionRoom::all()
+                ->filter(fn ($room) => in_array($userId, array_map('strval', $room->member_ids ?? []), true))
+                ->count(),
             'tasks' => Task::where('user_id', $userId)->latest()->limit(5)->get(),
             'files' => DriveFile::where('user_id', $userId)->latest()->limit(5)->get(),
             'logs' => ActivityLog::where('user_id', $userId)->latest()->limit(10)->get(),
