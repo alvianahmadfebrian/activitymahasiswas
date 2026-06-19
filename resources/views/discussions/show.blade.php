@@ -310,18 +310,56 @@
             </div>
 
             <div class="flex shrink-0 items-center gap-2">
-                <button type="button" onclick="openCallModal('voice', false)" class="call-btn voice">
-                    Telepon
-                </button>
 
-                <button type="button" onclick="openCallModal('video', false)" class="call-btn video">
-                    Video
-                </button>
+    <button type="button"
+            onclick="openCallModal('voice', false)"
+            class="call-btn voice">
+        Telepon
+    </button>
 
-                <a href="{{ route('discussions.index') }}" class="call-btn neutral">
-                    Daftar
-                </a>
-            </div>
+    <button type="button"
+            onclick="openCallModal('video', false)"
+            class="call-btn video">
+        Video
+    </button>
+
+    <button type="button"
+            onclick="document.getElementById('membersModal').classList.remove('hidden')"
+            class="call-btn neutral">
+        Anggota
+    </button>
+
+    <form method="POST"
+          action="{{ route('discussions.leave', $room->id) }}"
+          onsubmit="return confirm('Keluar dari group ini?')">
+        @csrf
+
+        <button type="submit" class="call-btn neutral">
+            Keluar
+        </button>
+    </form>
+
+    @if((string)$room->user_id === (string)auth()->id())
+        <form method="POST"
+              action="{{ route('discussions.delete', $room->id) }}"
+              onsubmit="return confirm('Hapus group ini? Semua pesan akan hilang.')">
+            @csrf
+            @method('DELETE')
+
+            <button type="submit"
+                    class="call-btn"
+                    style="background:#dc2626;color:white;">
+                Hapus
+            </button>
+        </form>
+    @endif
+
+    <a href="{{ route('discussions.index') }}"
+       class="call-btn neutral">
+        Daftar
+    </a>
+
+</div>
         </header>
 
         <div id="messagesBox" class="messages-scroll flex-1 space-y-4 overflow-y-auto bg-slate-50/80 p-4 sm:p-6">

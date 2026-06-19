@@ -26,16 +26,30 @@ class DiscussionController extends Controller
         }
     }
 
-private function updateUserOnlineStatus(): void
-{
-    if (!Auth::check()) {
-        return;
+    private function updateUserOnlineStatus(): void
+    {
+        if (!Auth::check()) {
+            return;
+        }
+
+        User::where('id', (string) Auth::id())->update([
+            'last_active_at' => now(),
+        ]);
     }
 
-    User::where('id', (string) Auth::id())->update([
-        'last_active_at' => now(),
-    ]);
-}
+    /**
+     * Pastikan user yang sedang login adalah anggota room.
+     * Mencegah user lain mengakses room/chat pribadi orang lain.
+     */
+    private function ensureMember(DiscussionRoom $room): void
+    {
+        $authId = (string) Auth::id();
+        $memberIds = array_map('strval', $room->member_ids ?? []);
+
+        if (!in_array($authId, $memberIds, true)) {
+            abort(403, 'Anda bukan anggota diskusi ini.');
+        }
+    }
 
     public function index()
     {
@@ -66,7 +80,7 @@ private function updateUserOnlineStatus(): void
 
         $memberIds = $data['member_ids'] ?? [];
         $memberIds[] = (string) Auth::id();
-        $memberIds = array_values(array_unique($memberIds));
+        $memberIds = array_values(array_unique(array_map('strval', $memberIds)));
 
         $room = DiscussionRoom::create([
             'user_id' => (string) Auth::id(),
@@ -90,6 +104,8 @@ private function updateUserOnlineStatus(): void
         $authId = (string) Auth::id();
 
         $room = DiscussionRoom::findOrFail($id);
+
+        $this->ensureMember($room);
 
         $messages = DiscussionMessage::where('room_id', $id)
             ->orderBy('created_at', 'asc')
@@ -115,6 +131,8 @@ private function updateUserOnlineStatus(): void
 
         $room = DiscussionRoom::findOrFail($id);
 
+        $this->ensureMember($room);
+
         $message = DiscussionMessage::create([
             'room_id' => $id,
             'user_id' => (string) Auth::id(),
@@ -130,7 +148,7 @@ private function updateUserOnlineStatus(): void
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message_id' => (string) $message->_id,
+                'message_id' => (string) $message->id,
             ]);
         }
 
@@ -146,6 +164,9 @@ private function updateUserOnlineStatus(): void
         ]);
 
         $room = DiscussionRoom::findOrFail($id);
+
+        $this->ensureMember($room);
+
         $user = Auth::user();
 
         $callId = (string) Str::uuid();
@@ -154,7 +175,7 @@ private function updateUserOnlineStatus(): void
         $payload = [
             'id' => $callId,
             'type' => $type,
-            'room_id' => (string) $room->_id,
+            'room_id' => (string) $room->id,
             'room_title' => $room->title,
             'from_user_id' => (string) Auth::id(),
             'from_user_name' => $user->name,
@@ -185,7 +206,7 @@ private function updateUserOnlineStatus(): void
 
         return response()->json([
             'success' => true,
-            'invite_message_id' => (string) $message->_id,
+            'invite_message_id' => (string) $message->id,
             'call' => $payload,
         ]);
     }
@@ -194,7 +215,9 @@ private function updateUserOnlineStatus(): void
     {
         $this->updateUserOnlineStatus();
 
-        DiscussionRoom::findOrFail($id);
+        $room = DiscussionRoom::findOrFail($id);
+
+        $this->ensureMember($room);
 
         $lastSeen = (string) $request->query('last_seen', '');
         $authId = (string) Auth::id();
@@ -211,7 +234,7 @@ private function updateUserOnlineStatus(): void
                 continue;
             }
 
-            if ((string) $message->_id === $lastSeen) {
+            if ((string) $message->id === $lastSeen) {
                 continue;
             }
 
@@ -233,7 +256,7 @@ private function updateUserOnlineStatus(): void
             return response()->json([
                 'success' => true,
                 'has_call' => true,
-                'invite_message_id' => (string) $message->_id,
+                'invite_message_id' => (string) $message->id,
                 'call' => $payload,
             ]);
         }
@@ -242,6 +265,91 @@ private function updateUserOnlineStatus(): void
             'success' => true,
             'has_call' => false,
         ]);
+    }
+
+    public function leaveGroup(string $id)
+    {
+        $this->updateUserOnlineStatus();
+
+        $room = DiscussionRoom::findOrFail($id);
+
+        $this->ensureMember($room);
+
+        if ($room->type === 'private') {
+            abort(403, 'Tidak bisa keluar dari chat pribadi.');
+        }
+
+        $memberIds = $room->member_ids ?? [];
+
+        $memberIds = array_values(array_filter(
+            $memberIds,
+            fn ($member) => (string) $member !== (string) Auth::id()
+        ));
+
+        // Jika owner keluar dan masih ada anggota lain, pindahkan kepemilikan
+        if ((string) $room->user_id === (string) Auth::id() && count($memberIds) > 0) {
+            $room->user_id = (string) $memberIds[0];
+        }
+
+        $room->member_ids = $memberIds;
+
+        // Jika tidak ada anggota tersisa, hapus room beserta pesannya
+        if (count($memberIds) === 0) {
+            DiscussionMessage::where('room_id', $room->id)->delete();
+            $room->delete();
+        } else {
+            $room->save();
+        }
+
+        return redirect()
+            ->route('discussions.index')
+            ->with('success', 'Berhasil keluar dari group.');
+    }
+
+    public function kickMember(string $id, string $userId)
+    {
+        $this->updateUserOnlineStatus();
+
+        $room = DiscussionRoom::findOrFail($id);
+
+        if ((string) $room->user_id !== (string) Auth::id()) {
+            abort(403);
+        }
+
+        if ((string) $userId === (string) Auth::id()) {
+            abort(403, 'Tidak bisa mengeluarkan diri sendiri. Gunakan keluar group.');
+        }
+
+        $memberIds = $room->member_ids ?? [];
+
+        $memberIds = array_values(array_filter(
+            $memberIds,
+            fn ($member) => (string) $member !== (string) $userId
+        ));
+
+        $room->member_ids = $memberIds;
+        $room->save();
+
+        return back()->with('success', 'Member berhasil dikeluarkan.');
+    }
+
+    public function deleteGroup(string $id)
+    {
+        $this->updateUserOnlineStatus();
+
+        $room = DiscussionRoom::findOrFail($id);
+
+        if ((string) $room->user_id !== (string) Auth::id()) {
+            abort(403);
+        }
+
+        DiscussionMessage::where('room_id', $room->id)->delete();
+
+        $room->delete();
+
+        return redirect()
+            ->route('discussions.index')
+            ->with('success', 'Group berhasil dihapus.');
     }
 
     public function startPrivateChat(Request $request)
@@ -254,6 +362,10 @@ private function updateUserOnlineStatus(): void
 
         $myId = (string) Auth::id();
         $targetId = (string) $data['target_user_id'];
+
+        if ($targetId === $myId) {
+            abort(403, 'Tidak bisa membuat chat pribadi dengan diri sendiri.');
+        }
 
         $ids = [$myId, $targetId];
         sort($ids);

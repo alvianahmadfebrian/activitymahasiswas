@@ -51,6 +51,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/discussions/{id}', [DiscussionController::class, 'show'])->name('discussions.show');
     Route::post('/discussions/{id}/messages', [DiscussionController::class, 'sendMessage'])->name('discussions.message');
 
+    Route::post('/discussions/{id}/leave', [DiscussionController::class, 'leaveGroup'])
+    ->name('discussions.leave');
+
+Route::post('/discussions/{id}/kick/{userId}', [DiscussionController::class, 'kickMember'])
+    ->name('discussions.kick');
+
+Route::delete('/discussions/{id}', [DiscussionController::class, 'deleteGroup'])
+    ->name('discussions.delete');
+
     Route::get('/activity', [ActivityLogController::class, 'index'])->name('activity.index');
 
     Route::get('/chatbot', [AiChatController::class, 'index'])->name('chatbot.index');
