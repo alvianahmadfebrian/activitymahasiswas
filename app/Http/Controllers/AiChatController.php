@@ -88,36 +88,6 @@ class AiChatController extends Controller
 
         $session = $this->getOrCreateSession($request, $userMessage, $uploadedFile);
 
-        $navigation = $this->detectNavigationIntent($userMessage);
-
-        if ($navigation && !$uploadedFile) {
-            ChatMessage::create([
-                'user_id' => $user->id,
-                'chat_session_id' => (string) $session->id,
-                'role' => 'user',
-                'message' => $userMessage,
-            ]);
-
-            $reply = 'Baik, saya arahkan ke halaman ' . $navigation['label'] . '.';
-
-            ChatMessage::create([
-                'user_id' => $user->id,
-                'chat_session_id' => (string) $session->id,
-                'role' => 'assistant',
-                'message' => $reply,
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'reply' => $reply,
-                'chat_session_id' => (string) $session->id,
-                'redirect_url' => $navigation['url'],
-                'file_url' => null,
-                'file_type' => null,
-                'file_name' => null,
-            ]);
-        }
-
         $userFileData = null;
 
         if ($uploadedFile) {
@@ -135,22 +105,12 @@ class AiChatController extends Controller
             'file_name' => $userFileData['name'] ?? null,
         ]);
 
-        $intent = $this->detectGenerateIntent($userMessage);
-        $aiPrompt = $this->buildPrompt($userMessage, $uploadedFile, $userFileData, $intent);
-        $aiReply = $this->askAi($aiPrompt, $intent);
-        $aiReply = $this->cleanAiReply($aiReply);
+        // Jalankan Agentic Loop menggunakan Groq API
+        $agentResult = $this->runAgent($session, $userMessage, $userFileData);
 
-        $fileData = null;
-
-        if ($intent === 'pdf') {
-            $fileData = $this->makePdfFromAi($userMessage, $aiReply);
-            $aiReply .= "\n\nPDF berhasil dibuat. Tekan tombol download di bawah untuk mengunduh file.";
-        }
-
-        if ($intent === 'word') {
-            $fileData = $this->makeWordFromAi($userMessage, $aiReply);
-            $aiReply .= "\n\nFile Word berhasil dibuat. Tekan tombol download di bawah untuk mengunduh file.";
-        }
+        $aiReply = $agentResult['reply'];
+        $fileData = $agentResult['file_data'];
+        $redirectUrl = $agentResult['redirect_url'];
 
         $assistantMessage = ChatMessage::create([
             'user_id' => $user->id,
@@ -167,7 +127,7 @@ class AiChatController extends Controller
             'success' => true,
             'reply' => $assistantMessage->message,
             'chat_session_id' => (string) $session->id,
-            'redirect_url' => route('chatbot.show', $session->id),
+            'redirect_url' => $redirectUrl,
             'file_url' => !empty($assistantMessage->file_path)
                 ? route('chatbot.download', $assistantMessage->id)
                 : null,
@@ -182,28 +142,28 @@ class AiChatController extends Controller
     }
 
     public function download($messageId)
-{
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    $message = ChatMessage::where('id', $messageId)
-        ->where('user_id', $user->id)
-        ->firstOrFail();
+        $message = ChatMessage::where('id', $messageId)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
 
-    if (!$message->file_path) {
-        abort(404);
+        if (!$message->file_path) {
+            abort(404);
+        }
+
+        $path = storage_path('app/public/' . $message->file_path);
+
+        if (!file_exists($path)) {
+            abort(404);
+        }
+
+        return response()->download(
+            $path,
+            $message->file_name ?? basename($path)
+        );
     }
-
-    $path = storage_path('app/public/' . $message->file_path);
-
-    if (!file_exists($path)) {
-        abort(404);
-    }
-
-    return response()->download(
-        $path,
-        $message->file_name ?? basename($path)
-    );
-}
 
     public function destroy($sessionId)
     {
@@ -297,188 +257,235 @@ class AiChatController extends Controller
         ];
     }
 
-    private function detectNavigationIntent(string $message): ?array
-    {
-        $text = strtolower($message);
-        $text = preg_replace('/\s+/', ' ', $text);
-
-        $routes = [
-            [
-                'keywords' => [
-                    'ke dashboard',
-                    'buka dashboard',
-                    'pindah dashboard',
-                    'pindah ke dashboard',
-                    'halaman dashboard',
-                    'menu dashboard',
-                    'dashboard',
-                ],
-                'route' => 'dashboard',
-                'label' => 'Dashboard',
-            ],
-            [
-                'keywords' => [
-                    'ke drive',
-                    'buka drive',
-                    'pindah drive',
-                    'pindah ke drive',
-                    'halaman drive',
-                    'menu drive',
-                    'file saya',
-                    'penyimpanan',
-                    'storage',
-                    'drive',
-                ],
-                'route' => 'drive.index',
-                'label' => 'Drive',
-            ],
-            [
-                'keywords' => [
-                    'ke tugas',
-                    'buka tugas',
-                    'pindah tugas',
-                    'pindah ke tugas',
-                    'halaman tugas',
-                    'menu tugas',
-                    'task',
-                    'tasks',
-                    'tugas',
-                ],
-                'route' => 'tasks.index',
-                'label' => 'Tugas',
-            ],
-            [
-                'keywords' => [
-                    'ke diskusi',
-                    'buka diskusi',
-                    'pindah diskusi',
-                    'pindah ke diskusi',
-                    'halaman diskusi',
-                    'menu diskusi',
-                    'discussion',
-                    'discussions',
-                    'diskusi',
-                ],
-                'route' => 'discussions.index',
-                'label' => 'Diskusi',
-            ],
-            [
-                'keywords' => [
-                    'ke aktivitas',
-                    'buka aktivitas',
-                    'pindah aktivitas',
-                    'pindah ke aktivitas',
-                    'riwayat aktivitas',
-                    'halaman aktivitas',
-                    'menu aktivitas',
-                    'activity',
-                    'aktivitas',
-                ],
-                'route' => 'activity.index',
-                'label' => 'Aktivitas',
-            ],
-            [
-                'keywords' => [
-                    'chat baru',
-                    'obrolan baru',
-                    'mulai chat baru',
-                    'buat chat baru',
-                ],
-                'route' => 'chatbot.index',
-                'label' => 'Obrolan Baru',
-            ],
-        ];
-
-        foreach ($routes as $item) {
-            foreach ($item['keywords'] as $keyword) {
-                if ($text === $keyword || str_contains($text, $keyword)) {
-                    return [
-                        'route' => $item['route'],
-                        'label' => $item['label'],
-                        'url' => route($item['route']),
-                    ];
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private function buildPrompt(string $message, $uploadedFile = null, ?array $fileData = null, ?string $intent = null): string
-    {
-        $prompt = trim($message);
-
-        if ($intent === 'pdf') {
-            $prompt .= "\n\nBuat isi dokumen yang rapi dan profesional untuk dijadikan PDF. Gunakan struktur dokumen yang menurutmu paling tepat. Gunakan format sederhana jika diperlukan: # untuk judul utama, ## untuk subjudul, ### untuk sub-subjudul, - untuk poin, dan angka untuk langkah. Jangan membuat link download atau URL apa pun.";
-        }
-
-        if ($intent === 'word') {
-            $prompt .= "\n\nBuat isi dokumen yang rapi dan profesional untuk dijadikan file Word. Gunakan struktur dokumen yang menurutmu paling tepat. Gunakan format sederhana jika diperlukan: # untuk judul utama, ## untuk subjudul, ### untuk sub-subjudul, - untuk poin, dan angka untuk langkah. Jangan membuat link download atau URL apa pun.";
-        }
-
-        if ($uploadedFile && $fileData) {
-            $prompt .= "\n\nUser juga mengupload file:";
-            $prompt .= "\nNama file: " . $fileData['name'];
-            $prompt .= "\nTipe file: " . $fileData['type'];
-
-            if ($fileData['type'] === 'image') {
-                $prompt .= "\nGambar sudah diterima. Jika belum bisa membaca isi gambar secara visual, minta user menjelaskan bagian yang ingin dianalisis.";
-            }
-
-            if ($fileData['type'] === 'pdf' || $fileData['type'] === 'word') {
-                $prompt .= "\nFile sudah diterima. Jika isi file belum bisa dibaca otomatis, minta user menyalin bagian pentingnya.";
-            }
-        }
-
-        if ($prompt === '') {
-            $prompt = 'Saya mengupload file. Tolong bantu jelaskan langkah berikutnya.';
-        }
-
-        return $prompt;
-    }
-
-    private function askAi(string $message, ?string $intent = null): string
+    private function runAgent(ChatSession $session, string $userMessage, ?array $userFileData): array
     {
         $apiKey = env('GROQ_API_KEY');
 
         if (!$apiKey) {
-            return $this->fallbackReply($message);
+            return [
+                'reply' => $this->fallbackReply($userMessage),
+                'file_data' => null,
+                'redirect_url' => null,
+            ];
         }
 
-        $systemPrompt = 'Kamu adalah asisten AI CampusHub untuk mahasiswa. Jawab dengan bahasa Indonesia yang jelas, natural, rapi, dan membantu. Jika user meminta PDF atau Word, pikirkan sendiri struktur dokumen yang paling cocok. Buat dokumen seperti tulisan manusia yang siap dibaca, dengan judul, subjudul, paragraf, dan poin jika memang diperlukan. Untuk struktur dokumen, boleh gunakan #, ##, ###, daftar angka, dan bullet. Jangan membuat link download, jangan menulis URL download, dan jangan menulis markdown link seperti [Unduh PDF](...). Backend akan membuat tombol download file secara otomatis.';
+        // 1. Definisikan System Prompt
+        $systemPrompt = 'Kamu adalah asisten AI CampusHub untuk mahasiswa bernama Lunox. Jawab dengan bahasa Indonesia yang jelas, natural, rapi, dan membantu. ' .
+            'Kamu memiliki akses ke beberapa tools berikut jika pengguna memintanya: ' .
+            '1. generate_document: gunakan jika user meminta untuk membuat/menghasilkan dokumen PDF atau Word. ' .
+            '2. navigate_to_page: gunakan jika user meminta untuk membuka, melihat, pergi ke, atau pindah ke halaman tertentu (dashboard, drive, tugas, diskusi, aktivitas, atau chat baru). ' .
+            'Jangan menuliskan link download manual atau markdown link download (seperti [Unduh](...)), karena tombol download file akan ditangani otomatis oleh sistem.';
 
-        if ($intent === 'pdf' || $intent === 'word') {
-            $systemPrompt .= ' Untuk dokumen, fokus pada isi yang lengkap dan terstruktur. Jangan jelaskan bahwa kamu sedang membuat file. Jangan sertakan instruksi teknis.';
+        // 2. Buat messages payload termasuk riwayat chat untuk konteks percakapan
+        $messages = [
+            [
+                'role' => 'system',
+                'content' => $systemPrompt,
+            ]
+        ];
+
+        // Ambil riwayat chat session
+        $pastMessages = ChatMessage::where('chat_session_id', (string) $session->id)
+            ->where('user_id', Auth::id())
+            ->oldest()
+            ->get();
+
+        foreach ($pastMessages as $past) {
+            if ($past->message) {
+                $content = $past->message;
+                if ($past->file_name) {
+                    $content .= "\n\n[Lampiran file: " . $past->file_name . " (Tipe: " . $past->file_type . ")]";
+                }
+                $messages[] = [
+                    'role' => $past->role === 'user' ? 'user' : 'assistant',
+                    'content' => $content,
+                ];
+            }
         }
+
+        // 3. Definisikan Tools
+        $tools = [
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'generate_document',
+                    'description' => 'Membuat dokumen PDF atau Word berdasarkan judul dan isi konten yang diberikan.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'format' => [
+                                'type' => 'string',
+                                'enum' => ['pdf', 'word'],
+                                'description' => 'Format file yang ingin dibuat (pdf atau word).'
+                            ],
+                            'title' => [
+                                'type' => 'string',
+                                'description' => 'Judul dokumen yang singkat, profesional, dan relevan dengan isi.'
+                            ],
+                            'content' => [
+                                'type' => 'string',
+                                'description' => 'Isi lengkap dokumen dalam bahasa Indonesia. Gunakan format paragraf atau poin-poin yang rapi. Jangan menuliskan link download atau URL apa pun.'
+                            ],
+                        ],
+                        'required' => ['format', 'title', 'content'],
+                    ],
+                ],
+            ],
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'navigate_to_page',
+                    'description' => 'Mengarahkan pengguna secara otomatis ke halaman atau menu tertentu dalam aplikasi CampusHub.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'destination' => [
+                                'type' => 'string',
+                                'enum' => ['dashboard', 'drive', 'tasks', 'discussions', 'activity', 'chatbot_new'],
+                                'description' => 'Nama halaman tujuan navigasi.'
+                            ],
+                        ],
+                        'required' => ['destination'],
+                    ],
+                ],
+            ],
+        ];
 
         try {
+            // Panggilan pertama ke Groq
             $response = Http::withToken($apiKey)
                 ->timeout(60)
                 ->post('https://api.groq.com/openai/v1/chat/completions', [
                     'model' => env('GROQ_MODEL', 'llama-3.1-8b-instant'),
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' => $systemPrompt,
-                        ],
-                        [
-                            'role' => 'user',
-                            'content' => $message,
-                        ],
-                    ],
+                    'messages' => $messages,
                     'temperature' => 0.7,
                     'max_tokens' => 2200,
+                    'tools' => $tools,
+                    'tool_choice' => 'auto',
                 ]);
 
             if (!$response->successful()) {
-                return $this->fallbackReply($message);
+                return [
+                    'reply' => $this->fallbackReply($userMessage),
+                    'file_data' => null,
+                    'redirect_url' => null,
+                ];
             }
 
-            return $response->json('choices.0.message.content')
-                ?? $this->fallbackReply($message);
+            $choice = $response->json('choices.0');
+            $assistantMessage = $choice['message'] ?? null;
+
+            if (!$assistantMessage) {
+                return [
+                    'reply' => $this->fallbackReply($userMessage),
+                    'file_data' => null,
+                    'redirect_url' => null,
+                ];
+            }
+
+            $toolCalls = $assistantMessage['tool_calls'] ?? null;
+            $replyContent = $assistantMessage['content'] ?? '';
+
+            // Jika tidak memanggil tool, langsung kembalikan balasan teks
+            if (empty($toolCalls)) {
+                return [
+                    'reply' => $this->cleanAiReply($replyContent),
+                    'file_data' => null,
+                    'redirect_url' => null,
+                ];
+            }
+
+            // Eksekusi tool calls
+            $fileData = null;
+            $redirectUrl = null;
+
+            // Simpan assistant message yang berisi tool_calls
+            $messages[] = $assistantMessage;
+
+            foreach ($toolCalls as $toolCall) {
+                $toolId = $toolCall['id'];
+                $funcName = $toolCall['function']['name'];
+                $argumentsStr = $toolCall['function']['arguments'] ?? '{}';
+                $args = json_decode($argumentsStr, true) ?: [];
+
+                $toolResult = '';
+
+                if ($funcName === 'generate_document') {
+                    $format = $args['format'] ?? 'pdf';
+                    $title = $args['title'] ?? 'Dokumen AI CampusHub';
+                    $content = $args['content'] ?? '';
+
+                    if ($format === 'pdf') {
+                        $fileData = $this->makePdfFromAi($title, $content);
+                        $toolResult = "File PDF berhasil dibuat dengan judul '{$title}' dan disimpan di: " . $fileData['url'];
+                    } else {
+                        $fileData = $this->makeWordFromAi($title, $content);
+                        $toolResult = "File Word (.docx) berhasil dibuat dengan judul '{$title}' dan disimpan di: " . $fileData['url'];
+                    }
+                } elseif ($funcName === 'navigate_to_page') {
+                    $destination = $args['destination'] ?? 'dashboard';
+
+                    $routes = [
+                        'dashboard' => 'dashboard',
+                        'drive' => 'drive.index',
+                        'tasks' => 'tasks.index',
+                        'discussions' => 'discussions.index',
+                        'activity' => 'activity.index',
+                        'chatbot_new' => 'chatbot.index',
+                    ];
+
+                    $routeName = $routes[$destination] ?? 'dashboard';
+                    $redirectUrl = route($routeName);
+                    $toolResult = "Pengguna diarahkan ke halaman '{$destination}' di URL: {$redirectUrl}";
+                }
+
+                $messages[] = [
+                    'role' => 'tool',
+                    'tool_call_id' => $toolId,
+                    'name' => $funcName,
+                    'content' => $toolResult,
+                ];
+            }
+
+            // Panggilan kedua ke Groq untuk mendapatkan tanggapan akhir
+            $secondResponse = Http::withToken($apiKey)
+                ->timeout(60)
+                ->post('https://api.groq.com/openai/v1/chat/completions', [
+                    'model' => env('GROQ_MODEL', 'llama-3.1-8b-instant'),
+                    'messages' => $messages,
+                    'temperature' => 0.7,
+                    'max_tokens' => 1000,
+                ]);
+
+            if ($secondResponse->successful()) {
+                $finalReply = $secondResponse->json('choices.0.message.content') ?? 'Tugas selesai dilakukan.';
+                return [
+                    'reply' => $this->cleanAiReply($finalReply),
+                    'file_data' => $fileData,
+                    'redirect_url' => $redirectUrl,
+                ];
+            }
+
+            $fallbackReply = 'Tugas Anda telah diproses.';
+            if ($fileData) {
+                $fallbackReply .= ' Dokumen berhasil dibuat.';
+            }
+            if ($redirectUrl) {
+                $fallbackReply .= ' Menuju halaman tujuan...';
+            }
+
+            return [
+                'reply' => $fallbackReply,
+                'file_data' => $fileData,
+                'redirect_url' => $redirectUrl,
+            ];
 
         } catch (\Throwable $e) {
-            return $this->fallbackReply($message);
+            return [
+                'reply' => 'Maaf, terjadi kesalahan saat memproses permintaan dengan asisten AI: ' . $e->getMessage(),
+                'file_data' => null,
+                'redirect_url' => null,
+            ];
         }
     }
 
@@ -501,100 +508,29 @@ class AiChatController extends Controller
         return trim($text);
     }
 
-    private function detectGenerateIntent(string $message): ?string
+    private function makePdfFromAi(string $title, string $content): array
     {
-        $text = strtolower($message);
+        $pdf = Pdf::loadView('generated.pdf-template', [
+            'title' => $title,
+            'content' => $content,
+        ]);
 
-        if (
-            str_contains($text, 'buat pdf') ||
-            str_contains($text, 'buatkan pdf') ||
-            str_contains($text, 'bikin pdf') ||
-            str_contains($text, 'bikinin pdf') ||
-            str_contains($text, 'jadikan pdf') ||
-            str_contains($text, 'file pdf') ||
-            str_contains($text, 'download pdf') ||
-            str_contains($text, 'export pdf') ||
-            str_contains($text, 'unduh pdf')
-        ) {
-            return 'pdf';
-        }
+        $pdf->setPaper('a4', 'portrait');
 
-        if (
-            str_contains($text, 'buat word') ||
-            str_contains($text, 'buatkan word') ||
-            str_contains($text, 'bikin word') ||
-            str_contains($text, 'bikinin word') ||
-            str_contains($text, 'buat docx') ||
-            str_contains($text, 'file word') ||
-            str_contains($text, 'jadikan word') ||
-            str_contains($text, 'dokumen word') ||
-            str_contains($text, 'export word') ||
-            str_contains($text, 'unduh word')
-        ) {
-            return 'word';
-        }
+        $fileName = 'generated/' . Str::slug($title) . '-' . time() . '.pdf';
 
-        return null;
+        Storage::disk('public')->put($fileName, $pdf->output());
+
+        return [
+            'type' => 'pdf',
+            'name' => basename($fileName),
+            'path' => $fileName,
+            'url' => asset('storage/' . $fileName),
+        ];
     }
 
-    private function makeTitle(string $message): string
+    private function makeWordFromAi(string $title, string $content): array
     {
-        $clean = Str::of($message)
-            ->lower()
-            ->replace([
-                'buatkan',
-                'buat',
-                'bikin',
-                'bikinin',
-                'pdf',
-                'word',
-                'docx',
-                'file',
-                'dokumen',
-                'tentang',
-                'jadikan',
-                'download',
-                'export',
-                'unduh',
-            ], '')
-            ->trim();
-
-        $title = Str::title((string) $clean);
-
-        if (strlen($title) < 5) {
-            $title = 'Dokumen AI CampusHub';
-        }
-
-        return Str::limit($title, 80, '');
-    }
-
-    private function makePdfFromAi(string $userMessage, string $content): array
-{
-    $title = $this->makeTitle($userMessage);
-
-    $pdf = Pdf::loadView('generated.pdf-template', [
-        'title' => $title,
-        'content' => $content,
-    ]);
-
-    $pdf->setPaper('a4', 'portrait');
-
-    $fileName = 'generated/' . Str::slug($title) . '-' . time() . '.pdf';
-
-    Storage::disk('public')->put($fileName, $pdf->output());
-
-    return [
-        'type' => 'pdf',
-        'name' => basename($fileName),
-        'path' => $fileName,
-        'url' => asset('storage/' . $fileName),
-    ];
-}
-
-    private function makeWordFromAi(string $userMessage, string $content): array
-    {
-        $title = $this->makeTitle($userMessage);
-
         $phpWord = new PhpWord();
 
         $phpWord->setDefaultFontName('Calibri');
@@ -669,10 +605,10 @@ class AiChatController extends Controller
         $writer->save($path);
 
         return [
-    'type' => 'word',
-    'name' => basename($fileName),
-    'path' => $fileName,
-    'url' => asset('storage/' . $fileName),
-];
+            'type' => 'word',
+            'name' => basename($fileName),
+            'path' => $fileName,
+            'url' => asset('storage/' . $fileName),
+        ];
     }
 }
