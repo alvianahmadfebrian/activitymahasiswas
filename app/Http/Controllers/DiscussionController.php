@@ -9,6 +9,7 @@ use App\Services\ActivityLogger;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class DiscussionController extends Controller
@@ -90,7 +91,9 @@ class DiscussionController extends Controller
 
         $authId = (string) Auth::id();
 
-        $rooms = DiscussionRoom::orderBy('updated_at', 'desc')->get();
+        $rooms = DiscussionRoom::orderBy('updated_at', 'desc')->get()
+            ->filter(fn ($room) => in_array($authId, array_map('strval', $room->member_ids ?? []), true))
+            ->values();
 
         $roomIds = $rooms->pluck('id')->map(fn ($id) => (string) $id)->all();
 
@@ -163,7 +166,9 @@ class DiscussionController extends Controller
             ->orderBy('created_at', 'asc')
             ->get();
 
-        $rooms = DiscussionRoom::orderBy('updated_at', 'desc')->get();
+        $rooms = DiscussionRoom::orderBy('updated_at', 'desc')->get()
+            ->filter(fn ($r) => in_array($authId, array_map('strval', $r->member_ids ?? []), true))
+            ->values();
 
         $users = User::where('id', '!=', $authId)->get()->map(function ($user) {
             $user->is_online = $this->isUserOnline($user);
@@ -272,6 +277,56 @@ class DiscussionController extends Controller
                     'time' => optional($m->created_at)->timezone('Asia/Jakarta')->format('H:i'),
                 ];
             }),
+        ]);
+    }
+
+    /**
+     * Tandai user sedang mengetik di room ini (dipanggil tiap kali user mengetik).
+     */
+    public function typing(Request $request, string $id)
+    {
+        $room = DiscussionRoom::findOrFail($id);
+        $this->ensureMember($room);
+
+        $authId = (string) Auth::id();
+        $userName = Auth::user()->name;
+
+        $key = "discussion_typing:{$id}";
+        $typing = Cache::get($key, []);
+
+        // simpan { user_id => [name, expires_at_timestamp] }, auto-expire 4 detik
+        $typing[$authId] = [
+            'name' => $userName,
+            'expires' => now()->addSeconds(4)->timestamp,
+        ];
+
+        Cache::put($key, $typing, 10);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Cek siapa saja yang sedang mengetik di room ini (selain diri sendiri).
+     */
+    public function checkTyping(Request $request, string $id)
+    {
+        $room = DiscussionRoom::findOrFail($id);
+        $this->ensureMember($room);
+
+        $authId = (string) Auth::id();
+        $key = "discussion_typing:{$id}";
+        $typing = Cache::get($key, []);
+
+        $now = now()->timestamp;
+
+        $names = collect($typing)
+            ->filter(fn ($entry, $uid) => $uid !== $authId && ($entry['expires'] ?? 0) > $now)
+            ->pluck('name')
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'typing_users' => $names,
         ]);
     }
 

@@ -188,6 +188,21 @@
         white-space: nowrap;
     }
 
+    .ds-unread-dot {
+        flex-shrink: 0;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: #2563eb;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
     .ds-divider {
         padding: 14px 12px 8px;
         font-size: 10.5px;
@@ -294,7 +309,7 @@
                         $initial = strtoupper(substr($room->title ?? 'R', 0, 1));
                     @endphp
 
-                    <a href="{{ route('discussions.show', $room->id) }}" class="chat-item ds-item">
+                    <a href="{{ route('discussions.show', $room->id) }}" class="chat-item ds-item" data-room-id="{{ $room->id }}" data-last-time="{{ optional($room->updated_at)->timestamp }}">
                         <div class="ds-avatar {{ $isGroup ? '' : 'private' }}">
                             {{ $initial }}
                         </div>
@@ -305,7 +320,10 @@
                                 <span class="ds-time">{{ $room->preview_time }}</span>
                             </div>
 
-                            <p class="ds-sub">{{ $room->preview_text }}</p>
+                            <div class="flex items-center justify-between gap-2">
+                                <p class="ds-sub">{{ $room->preview_text }}</p>
+                                <span class="ds-unread-dot hidden"></span>
+                            </div>
                         </div>
                     </a>
                 @empty
@@ -453,6 +471,25 @@ document.getElementById('chatSearch')?.addEventListener('input', function () {
 
     document.querySelectorAll('.chat-item').forEach(item => {
         item.style.display = item.innerText.toLowerCase().includes(keyword) ? '' : 'none';
+    });
+});
+
+// ===== Unread indicator sederhana berbasis localStorage =====
+document.querySelectorAll('a[data-room-id]').forEach(item => {
+    const roomId = item.dataset.roomId;
+    const lastTime = parseInt(item.dataset.lastTime || '0', 10);
+    const readKey = `campushub_last_read_${roomId}`;
+    const lastRead = parseInt(localStorage.getItem(readKey) || '0', 10);
+
+    const dot = item.querySelector('.ds-unread-dot');
+
+    if (lastTime > 0 && lastTime > lastRead && dot) {
+        dot.textContent = '●';
+        dot.classList.remove('hidden');
+    }
+
+    item.addEventListener('click', () => {
+        localStorage.setItem(readKey, String(lastTime));
     });
 });
 </script>

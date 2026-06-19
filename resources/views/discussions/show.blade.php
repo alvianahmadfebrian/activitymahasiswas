@@ -20,6 +20,14 @@
 
     $lastMessage = $messages->last();
     $initialAfter = $lastMessage && $lastMessage->created_at ? $lastMessage->created_at->toISOString() : null;
+
+    $smartDateLabel = function ($carbonDate) {
+        if (!$carbonDate) return '';
+        $d = $carbonDate->timezone('Asia/Jakarta');
+        if ($d->isToday()) return 'Hari ini';
+        if ($d->isYesterday()) return 'Kemarin';
+        return $d->translatedFormat('d F Y');
+    };
 @endphp
 
 <style>
@@ -349,7 +357,7 @@
 </div>
     </aside>
 
-    <section class="chat-card flex min-w-0 flex-col overflow-hidden rounded-l-none">
+    <section class="chat-card relative flex min-w-0 flex-col overflow-hidden rounded-l-none">
         <header class="chat-head flex items-center justify-between gap-3 p-4 sm:p-5">
             <div class="flex min-w-0 items-center gap-3">
                 <div class="room-avatar">
@@ -426,13 +434,13 @@
         </header>
 
         <div id="messagesBox" class="messages-scroll flex-1 space-y-4 overflow-y-auto bg-slate-50/80 p-4 sm:p-6">
-            @php $lastDateLabel = null; @endphp
+            @php $lastDateLabel = null; $lastSenderId = null; @endphp
 
             @forelse($messages as $message)
                 @php
                     $isMe = (string) $message->user_id === (string) auth()->id();
                     $chatTime = $message->created_at ? $message->created_at->timezone('Asia/Jakarta')->format('H:i') : '';
-                    $dateLabel = $message->created_at ? $message->created_at->timezone('Asia/Jakarta')->translatedFormat('d F Y') : '';
+                    $dateLabel = $message->created_at ? $smartDateLabel($message->created_at) : '';
 
                     $rawMessage = $message->message ?? '';
                     $isCallLog = str_starts_with($rawMessage, 'CALL_LOG::');
@@ -457,6 +465,13 @@
 
                     $showDateDivider = $dateLabel && $dateLabel !== $lastDateLabel;
                     $lastDateLabel = $dateLabel ?: $lastDateLabel;
+
+                    $isGrouped = !$isCallLog && !$isCallInvite && !$showDateDivider && $lastSenderId === (string) $message->user_id;
+                    if (!$isCallLog && !$isCallInvite) {
+                        $lastSenderId = (string) $message->user_id;
+                    } else {
+                        $lastSenderId = null;
+                    }
                 @endphp
 
                 @if($showDateDivider)
@@ -509,9 +524,9 @@
                         </div>
                     </div>
                 @else
-                    <div class="flex {{ $isMe ? 'justify-end' : 'justify-start' }}">
+                    <div class="flex {{ $isMe ? 'justify-end' : 'justify-start' }} {{ $isGrouped ? '-mt-2.5' : '' }}">
                         <div class="max-w-[82%] sm:max-w-[70%]">
-                            @if(!$isMe)
+                            @if(!$isMe && !$isGrouped)
                                 <div class="mb-1 ml-2 text-xs font-semibold text-slate-500">
                                     {{ $message->user_name }}
                                 </div>
@@ -522,7 +537,7 @@
                             </div>
 
                             <div class="msg-time {{ $isMe ? 'text-right mr-2' : 'ml-2' }}">
-                                {{ $chatTime }}
+                                {{ $chatTime }}{{ $isMe ? ' ✓✓' : '' }}
                             </div>
                         </div>
                     </div>
@@ -536,6 +551,17 @@
                 </div>
             @endforelse
         </div>
+
+        <button
+            type="button"
+            id="scrollBottomBtn"
+            onclick="scrollToBottom()"
+            class="hidden absolute bottom-24 right-6 z-10 h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700"
+        >
+            ↓
+        </button>
+
+        <div id="typingIndicator" class="hidden px-5 pb-1 text-xs font-medium italic text-slate-400"></div>
 
         <footer class="border-t border-blue-100/40 bg-white/80 p-4 sm:p-5">
             <form id="sendMessageForm" class="flex gap-3">
@@ -681,9 +707,20 @@
 @push('scripts')
 <script>
 const box = document.getElementById('messagesBox');
+const scrollBottomBtn = document.getElementById('scrollBottomBtn');
 
 if (box) {
     box.scrollTop = box.scrollHeight;
+
+    box.addEventListener('scroll', () => {
+        const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+        scrollBottomBtn?.classList.toggle('hidden', nearBottom);
+        scrollBottomBtn?.classList.toggle('flex', !nearBottom);
+    });
+}
+
+function scrollToBottom() {
+    if (box) box.scrollTop = box.scrollHeight;
 }
 
 document.getElementById('roomSearch')?.addEventListener('input', function () {
@@ -708,12 +745,16 @@ const videoCallUrl = @json($videoCallUrl);
 
 const discussionMessageUrl = @json(route('discussions.message', $room->id));
 const pollMessagesUrl = @json(route('discussions.poll', $room->id));
+const typingUrl = @json(route('discussions.typing', $room->id));
+const checkTypingUrl = @json(route('discussions.typing.check', $room->id));
 const callStartUrl = @json(route('discussions.call.start', $room->id));
 const callCheckUrl = @json(route('discussions.call.check', $room->id));
 const csrfToken = @json(csrf_token());
 
 const roomId = @json((string) $room->id);
 const lastSeenKey = `campushub_last_seen_call_${roomId}`;
+
+localStorage.setItem(`campushub_last_read_${roomId}`, String(Date.now()));
 
 let activeCallType = null;
 let callStartedAt = null;
@@ -728,6 +769,55 @@ let lastRenderedDateLabel = @json($lastDateLabel ?? null);
 const sendForm = document.getElementById('sendMessageForm');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendMessageBtn');
+
+// ===== Indikator "sedang mengetik" =====
+let typingEmitTimeout = null;
+
+messageInput?.addEventListener('input', function () {
+    if (typingEmitTimeout) return; // throttle, kirim maksimal sekali per 2 detik
+
+    fetch(typingUrl, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json'
+        },
+        body: new URLSearchParams({ _token: csrfToken })
+    }).catch(() => {});
+
+    typingEmitTimeout = setTimeout(() => { typingEmitTimeout = null; }, 2000);
+});
+
+const typingIndicator = document.getElementById('typingIndicator');
+
+async function pollTypingStatus() {
+    try {
+        const response = await fetch(checkTypingUrl, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        const data = await response.json();
+        if (!data.success) return;
+
+        const names = data.typing_users || [];
+
+        if (names.length === 0) {
+            typingIndicator.classList.add('hidden');
+            typingIndicator.textContent = '';
+            return;
+        }
+
+        const text = names.length === 1
+            ? `${names[0]} sedang mengetik...`
+            : `${names.slice(0, 2).join(', ')}${names.length > 2 ? ' dan lainnya' : ''} sedang mengetik...`;
+
+        typingIndicator.textContent = text;
+        typingIndicator.classList.remove('hidden');
+    } catch (error) {
+        console.error('Gagal cek status mengetik:', error);
+    }
+}
 
 sendForm?.addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -1138,5 +1228,6 @@ document.addEventListener('keydown', function (event) {
 
 setInterval(checkIncomingCall, 2500);
 setInterval(pollNewMessages, 2000);
+setInterval(pollTypingStatus, 1800);
 </script>
 @endpush

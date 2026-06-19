@@ -55,7 +55,9 @@ Route::middleware('auth')->group(function () {
     ->name('discussions.leave');
 
 
-    Route::get('discussions/{id}/poll', [DiscussionController::class, 'pollMessages'])->name('discussions.poll');
+Route::get('discussions/{id}/poll', [DiscussionController::class, 'pollMessages'])->name('discussions.poll');
+Route::post('discussions/{id}/typing', [DiscussionController::class, 'typing'])->name('discussions.typing');
+Route::get('discussions/{id}/typing/check', [DiscussionController::class, 'checkTyping'])->name('discussions.typing.check');
 
 Route::post('/discussions/{id}/kick/{userId}', [DiscussionController::class, 'kickMember'])
     ->name('discussions.kick');
