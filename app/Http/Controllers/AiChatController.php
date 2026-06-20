@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
 use App\Models\DriveFile;
+use App\Models\Task;
 use App\Services\SupabaseStorageService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -215,10 +216,13 @@ class AiChatController extends Controller
         ]);
     }
 
-    private function getOrCreateAiFolder(): string
+    private function getOrCreateFolder(?string $folderName = null): string
     {
         $user = Auth::user();
-        $folderName = 'Hasil AI';
+        $folderName = trim($folderName ?? 'Hasil AI');
+        if ($folderName === '' || strtolower($folderName) === 'root') {
+            return 'root';
+        }
 
         $existing = DriveFile::where('user_id', (string) $user->id)
             ->where('is_folder', true)
@@ -242,6 +246,11 @@ class AiChatController extends Controller
         ]);
 
         return $folderName;
+    }
+
+    private function getOrCreateAiFolder(): string
+    {
+        return $this->getOrCreateFolder('Hasil AI');
     }
 
     private function makeSessionTitle(string $message, $uploadedFile = null): string
@@ -314,6 +323,8 @@ class AiChatController extends Controller
             'Kamu memiliki akses ke beberapa tools berikut jika pengguna memintanya: ' .
             '1. generate_document: gunakan jika user meminta untuk membuat/menghasilkan dokumen PDF atau Word. ' .
             '2. navigate_to_page: gunakan jika user meminta untuk membuka, melihat, pergi ke, atau pindah ke halaman tertentu (dashboard, drive, tugas, diskusi, aktivitas, atau chat baru). ' .
+            '3. save_file_to_drive: gunakan jika user meminta untuk menyimpan/mengunggah file atau lampiran chat ke Drive. ' .
+            '4. create_task: gunakan jika user meminta untuk membuat/mencatat tugas kuliah baru. ' .
             'Jangan menuliskan link download manual atau markdown link download (seperti [Unduh](...)), karena tombol download file akan ditangani otomatis oleh sistem.';
 
         // 2. Buat messages payload termasuk riwayat chat untuk konteks percakapan
@@ -386,6 +397,60 @@ class AiChatController extends Controller
                             ],
                         ],
                         'required' => ['destination'],
+                    ],
+                ],
+            ],
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'save_file_to_drive',
+                    'description' => 'Menyimpan file yang diunggah oleh pengguna di chat (baik file di chat saat ini atau dari riwayat chat sesi ini) ke dalam Drive.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'folder_name' => [
+                                'type' => 'string',
+                                'description' => 'Nama folder tujuan di Drive (contoh: "Tugas", "Materi", "Hasil AI"). Jika dikosongkan, file akan diletakkan di root atau folder default.'
+                            ],
+                            'custom_name' => [
+                                'type' => 'string',
+                                'description' => 'Nama file kustom baru jika pengguna ingin mengubah nama filenya saat disimpan. Sertakan ekstensi file asli yang sesuai (misal: dokumen.pdf).'
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'create_task',
+                    'description' => 'Membuat atau mencatat tugas kuliah baru ke dalam database.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'title' => [
+                                'type' => 'string',
+                                'description' => 'Judul tugas kuliah yang ingin dibuat (contoh: "Tugas Kalkulus I", "Resume Jurnal Pemrograman Web").'
+                            ],
+                            'description' => [
+                                'type' => 'string',
+                                'description' => 'Deskripsi, petunjuk, atau catatan tambahan untuk tugas tersebut.'
+                            ],
+                            'deadline' => [
+                                'type' => 'string',
+                                'description' => 'Tanggal deadline/tenggat waktu pengumpulan tugas dengan format YYYY-MM-DD (contoh: "2026-06-25"). Tanyakan atau tentukan tahun saat ini (2026) jika tidak disebutkan.'
+                            ],
+                            'status' => [
+                                'type' => 'string',
+                                'enum' => ['belum', 'proses', 'selesai'],
+                                'description' => 'Status pengerjaan tugas saat ini ("belum", "proses", atau "selesai"). Default: "belum".'
+                            ],
+                            'attach_file' => [
+                                'type' => 'boolean',
+                                'description' => 'Set ke true jika pengguna secara eksplisit meminta untuk menyertakan/melampirkan file/dokumen yang dikirim di chat ke tugas ini.'
+                            ],
+                        ],
+                        'required' => ['title'],
                     ],
                 ],
             ],
@@ -477,6 +542,152 @@ class AiChatController extends Controller
                     $routeName = $routes[$destination] ?? 'dashboard';
                     $redirectUrl = route($routeName);
                     $toolResult = "Pengguna diarahkan ke halaman '{$destination}' di URL: {$redirectUrl}";
+                } elseif ($funcName === 'save_file_to_drive') {
+                    $folderName = $args['folder_name'] ?? 'Hasil AI';
+                    $customName = $args['custom_name'] ?? null;
+
+                    // 1. Coba cari file di request saat ini terlebih dahulu
+                    $sourceFile = null;
+                    if ($userFileData) {
+                        $sourceFile = $userFileData;
+                    } else {
+                        // 2. Cari di riwayat pesan sesi chat ini dari yang terbaru
+                        $lastFileMessage = ChatMessage::where('chat_session_id', (string) $session->id)
+                            ->where('user_id', Auth::id())
+                            ->whereNotNull('file_path')
+                            ->latest()
+                            ->first();
+
+                        if ($lastFileMessage) {
+                            $sourceFile = [
+                                'path' => $lastFileMessage->file_path,
+                                'name' => $lastFileMessage->file_name,
+                                'type' => $lastFileMessage->file_type,
+                            ];
+                        }
+                    }
+
+                    if ($sourceFile) {
+                        $localPath = storage_path('app/public/' . $sourceFile['path']);
+                        if (file_exists($localPath)) {
+                            // Tentukan nama file tujuan
+                            $finalName = $customName ?: $sourceFile['name'];
+
+                            // Jika ada nama kustom, pastikan ekstensi sesuai dengan aslinya
+                            if ($customName) {
+                                $origExt = pathinfo($sourceFile['name'], PATHINFO_EXTENSION);
+                                $newExt = pathinfo($customName, PATHINFO_EXTENSION);
+                                if (strtolower($origExt) !== strtolower($newExt) && $origExt !== '') {
+                                    $finalName = pathinfo($customName, PATHINFO_FILENAME) . '.' . $origExt;
+                                }
+                            }
+
+                            // Buat instance UploadedFile agar sesuai dengan service
+                            $mimeType = mime_content_type($localPath) ?: 'application/octet-stream';
+                            $uploadedFile = new UploadedFile(
+                                $localPath,
+                                $finalName,
+                                $mimeType,
+                                null,
+                                true // Enable test mode to bypass normal uploaded file validation
+                            );
+
+                            $targetFolder = $this->getOrCreateFolder($folderName);
+                            $storage = app(SupabaseStorageService::class);
+                            $upload = $storage->uploadDriveFile($uploadedFile, $targetFolder);
+
+                            DriveFile::create([
+                                'user_id'       => (string) Auth::id(),
+                                'folder'        => $targetFolder,
+                                'name'          => $upload['original_name'],
+                                'original_name' => $upload['original_name'],
+                                'mime_type'     => $upload['mime_type'],
+                                'size'          => $upload['size'],
+                                'path'          => $upload['path'],
+                                'url'           => $upload['url'],
+                                'is_folder'     => false,
+                            ]);
+
+                            $toolResult = "File '{$finalName}' berhasil disimpan ke Drive di folder '{$targetFolder}'.";
+                        } else {
+                            $toolResult = "Gagal menyimpan file ke Drive: file fisik tidak ditemukan di server lokal.";
+                        }
+                    } else {
+                        $toolResult = "Gagal menyimpan file ke Drive: tidak ada file/lampiran yang ditemukan di chat saat ini atau di riwayat chat sesi ini.";
+                    }
+                } elseif ($funcName === 'create_task') {
+                    $title = $args['title'] ?? 'Tugas Baru';
+                    $description = $args['description'] ?? null;
+                    $deadline = $args['deadline'] ?? null;
+                    $status = $args['status'] ?? 'belum';
+                    $attachFile = $args['attach_file'] ?? false;
+
+                    $fileUrl = null;
+                    $filePath = null;
+                    $fileName = null;
+
+                    if ($attachFile) {
+                        $sourceFile = null;
+                        if ($userFileData) {
+                            $sourceFile = $userFileData;
+                        } else {
+                            $lastFileMessage = ChatMessage::where('chat_session_id', (string) $session->id)
+                                ->where('user_id', Auth::id())
+                                ->whereNotNull('file_path')
+                                ->latest()
+                                ->first();
+
+                            if ($lastFileMessage) {
+                                $sourceFile = [
+                                    'path' => $lastFileMessage->file_path,
+                                    'name' => $lastFileMessage->file_name,
+                                    'type' => $lastFileMessage->file_type,
+                                ];
+                            }
+                        }
+
+                        if ($sourceFile) {
+                            $localPath = storage_path('app/public/' . $sourceFile['path']);
+                            if (file_exists($localPath)) {
+                                $mimeType = mime_content_type($localPath) ?: 'application/octet-stream';
+                                $uploadedFile = new UploadedFile(
+                                    $localPath,
+                                    $sourceFile['name'],
+                                    $mimeType,
+                                    null,
+                                    true
+                                );
+
+                                $storage = app(SupabaseStorageService::class);
+                                $upload = $storage->uploadTaskFile($uploadedFile);
+                                $fileUrl = $upload['url'];
+                                $filePath = $upload['path'];
+                                $fileName = $upload['original_name'];
+                            }
+                        }
+                    }
+
+                    // Simpan Task ke Database
+                    Task::create([
+                        'user_id' => (string) Auth::id(),
+                        'title' => $title,
+                        'description' => $description,
+                        'deadline' => $deadline,
+                        'status' => $status,
+                        'file_url' => $fileUrl,
+                        'file_path' => $filePath,
+                        'file_name' => $fileName,
+                    ]);
+
+                    \App\Services\ActivityLogger::log('task_create', 'Membuat tugas via AI: ' . $title);
+
+                    $toolResult = "Tugas '{$title}' dengan status '{$status}' berhasil dibuat.";
+                    if ($deadline) {
+                        $toolResult .= " Deadline pengumpulan: {$deadline}.";
+                    }
+                    if ($fileUrl) {
+                        $toolResult .= " File lampiran '{$fileName}' berhasil dikaitkan.";
+                    }
                 }
 
                 $messages[] = [
