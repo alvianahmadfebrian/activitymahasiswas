@@ -56,6 +56,46 @@ class TaskController extends Controller
         return back()->with('success', 'Tugas berhasil dibuat.');
     }
 
+    public function update(Request $request, string $id, SupabaseStorageService $storage)
+    {
+        $task = Task::where('id', $id)
+            ->where('user_id', (string) Auth::id())
+            ->firstOrFail();
+
+        $data = $request->validate([
+            'title' => ['required', 'string'],
+            'description' => ['nullable', 'string'],
+            'deadline' => ['nullable', 'date'],
+            'status' => ['required', 'in:belum,proses,selesai'],
+            'file' => ['nullable', 'file', 'max:10240'],
+        ]);
+
+        $fileUrl = $task->file_url;
+        $filePath = $task->file_path;
+        $fileName = $task->file_name;
+
+        if ($request->hasFile('file')) {
+            $upload = $storage->uploadTaskFile($request->file('file'));
+            $fileUrl = $upload['url'];
+            $filePath = $upload['path'];
+            $fileName = $upload['original_name'];
+        }
+
+        $task->update([
+            'title' => $data['title'],
+            'description' => $data['description'] ?? null,
+            'deadline' => $data['deadline'] ?? null,
+            'status' => $data['status'],
+            'file_url' => $fileUrl,
+            'file_path' => $filePath,
+            'file_name' => $fileName,
+        ]);
+
+        ActivityLogger::log('task_update', 'Memperbarui tugas: ' . $data['title']);
+
+        return back()->with('success', 'Tugas berhasil diperbarui.');
+    }
+
     public function updateStatus(Request $request, string $id)
     {
         $request->validate([

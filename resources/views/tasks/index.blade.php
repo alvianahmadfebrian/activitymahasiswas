@@ -388,6 +388,7 @@
         transition: background .12s, color .12s, border-color .12s;
     }
     .tp-del:hover { background: rgba(254, 226, 226, .70); color: #dc2626; border-color: #fca5a5; }
+    .tp-edit-btn:hover { background: rgba(219, 234, 254, .70); color: #2563eb; border-color: #93c5fd; }
 
     /* empty state */
     .tp-empty { text-align: center; padding: 56px 20px; }
@@ -798,19 +799,34 @@
                                     @endif
                                 </td>
 
-                                {{-- delete --}}
+                                {{-- actions --}}
                                 <td class="text-right">
-                                    <form method="POST" action="{{ route('tasks.destroy', ['id' => $task->id]) }}"
-                                        onsubmit="return confirm('Hapus tugas ini?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="tp-del" title="Hapus">
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                                                <path d="M9 3H15M4 7H20M18 7L17.4 18.2C17.3 19.8 16 21 14.4 21H9.6C8 21 6.7 19.8 6.6 18.2L6 7M10 11V17M14 11V17"
-                                                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <button type="button" class="tp-edit-btn tp-del" title="Edit"
+                                            data-id="{{ $task->id }}"
+                                            data-title="{{ $task->title }}"
+                                            data-description="{{ $task->description }}"
+                                            data-deadline="{{ $task->deadline ? $task->deadline->format('Y-m-d') : '' }}"
+                                            data-status="{{ $status }}"
+                                            data-filename="{{ $task->file_name }}">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                                <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                                             </svg>
                                         </button>
-                                    </form>
+
+                                        <form method="POST" action="{{ route('tasks.destroy', ['id' => $task->id]) }}"
+                                            onsubmit="return confirm('Hapus tugas ini?')" class="inline">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="tp-del" title="Hapus">
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                                                    <path d="M9 3H15M4 7H20M18 7L17.4 18.2C17.3 19.8 16 21 14.4 21H9.6C8 21 6.7 19.8 6.6 18.2L6 7M10 11V17M14 11V17"
+                                                        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                                </svg>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
@@ -870,6 +886,72 @@
         <div class="tp-modal-body" id="modalBody">
             {{-- content diisi JS --}}
         </div>
+    </div>
+</div>
+
+{{-- ── EDIT TASK MODAL ────────────────────────── --}}
+<div id="editModal" class="tp-modal-bg" role="dialog" aria-modal="true" aria-label="Edit Tugas">
+    <div class="tp-modal" style="max-width: 520px;">
+        <div class="tp-modal-head">
+            <span class="tp-modal-title">Edit Tugas</span>
+            <button type="button" id="editModalClose" class="tp-modal-close" aria-label="Tutup">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <form id="editTaskForm" method="POST" enctype="multipart/form-data">
+            @csrf
+            @method('PUT')
+            
+            <div class="tp-modal-body p-6 flex-col space-y-4" style="align-items: stretch; background: #fff;">
+                <div class="tp-field">
+                    <label>Judul tugas</label>
+                    <input id="editTitle" name="title" placeholder="Contoh: Makalah Kurikulum"
+                        class="tp-input" required>
+                </div>
+
+                <div class="tp-field">
+                    <label>Deadline</label>
+                    <input id="editDeadline" name="deadline" type="date" class="tp-input">
+                </div>
+
+                <div class="tp-field">
+                    <label>Status</label>
+                    <select id="editStatus" name="status" class="tp-input">
+                        <option value="belum">Belum</option>
+                        <option value="proses">Proses</option>
+                        <option value="selesai">Selesai</option>
+                    </select>
+                </div>
+
+                <div class="tp-field">
+                    <label>Lampiran Baru (Opsional)</label>
+                    <label class="tp-file-zone" for="editFileInput">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.64 17.2a2 2 0 01-2.83-2.83l8.49-8.48"
+                                stroke="#3b82f6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span id="editFileNameText" class="truncate">Biarkan kosong jika tidak ingin mengubah</span>
+                    </label>
+                    <input id="editFileInput" name="file" type="file" class="hidden">
+                    <div id="currentFileBadge" class="mt-2 text-xs text-slate-500 hidden">
+                        File aktif: <span id="currentFileName" class="font-medium text-blue-600"></span>
+                    </div>
+                </div>
+
+                <div class="tp-field">
+                    <label>Deskripsi</label>
+                    <textarea id="editDescription" name="description" rows="4" placeholder="Catatan singkat tugas..."
+                        class="tp-input resize-none"></textarea>
+                </div>
+            </div>
+            
+            <div class="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50/50">
+                <button type="button" id="editCancelBtn" class="tp-modal-btn">Batal</button>
+                <button type="submit" class="tp-modal-btn primary">Simpan Perubahan</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1149,6 +1231,81 @@ modal?.addEventListener('click', e => {
 // Escape key
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeModal();
+});
+
+/* ─── EDIT TASK MODAL LOGIC ─────────────────────── */
+const editModal = document.getElementById('editModal');
+const editTaskForm = document.getElementById('editTaskForm');
+const editTitle = document.getElementById('editTitle');
+const editDeadline = document.getElementById('editDeadline');
+const editStatus = document.getElementById('editStatus');
+const editDescription = document.getElementById('editDescription');
+const editFileInput = document.getElementById('editFileInput');
+const editFileNameText = document.getElementById('editFileNameText');
+const currentFileBadge = document.getElementById('currentFileBadge');
+const currentFileName = document.getElementById('currentFileName');
+const editModalClose = document.getElementById('editModalClose');
+const editCancelBtn = document.getElementById('editCancelBtn');
+
+function openEditModal(task) {
+    // Set form action dynamically
+    editTaskForm.action = `/tasks/${task.id}`;
+
+    // Populate fields
+    editTitle.value = task.title || '';
+    editDeadline.value = task.deadline || '';
+    editStatus.value = task.status || 'belum';
+    editDescription.value = task.description || '';
+
+    // Show current file info if exists
+    if (task.filename) {
+        currentFileName.textContent = task.filename;
+        currentFileBadge.classList.remove('hidden');
+    } else {
+        currentFileBadge.classList.add('hidden');
+    }
+
+    // Reset file input label
+    editFileNameText.textContent = 'Biarkan kosong jika tidak ingin mengubah';
+    editFileInput.value = '';
+
+    // Show modal
+    editModal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeEditModal() {
+    editModal?.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+// Bind edit buttons
+document.querySelectorAll('.tp-edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const task = {
+            id: btn.dataset.id,
+            title: btn.dataset.title,
+            description: btn.dataset.description,
+            deadline: btn.dataset.deadline,
+            status: btn.dataset.status,
+            filename: btn.dataset.filename
+        };
+        openEditModal(task);
+    });
+});
+
+editModalClose?.addEventListener('click', closeEditModal);
+editCancelBtn?.addEventListener('click', closeEditModal);
+
+editFileInput?.addEventListener('change', function () {
+    const f = this.files?.[0];
+    if (editFileNameText) editFileNameText.textContent = f ? f.name : 'Biarkan kosong jika tidak ingin mengubah';
+});
+
+// Close when clicking outside modal box
+editModal?.addEventListener('click', e => {
+    if (e.target === editModal) closeEditModal();
 });
 </script>
 @endpush
